@@ -335,7 +335,7 @@ describe("Attachment — image dispatch", () => {
     // through to the durable markdown_url instead.
     configStore.setState({ cdnDomain: "cdn.example.test", cdnSigned: true });
     const id = "11111111-2222-3333-4444-555555555555";
-    const markdownUrl = `https://multica-api.copilothub.ai/api/attachments/${id}/download`;
+    const markdownUrl = `/api/attachments/${id}/download`;
     const att = makeRecord({
       id,
       url: "https://cdn.example.test/uploads/ws/shot.png",
@@ -360,6 +360,44 @@ describe("Attachment — image dispatch", () => {
     // Web (same-origin proxy / same-site cookie): the API endpoint loads
     // natively, so no metadata re-fetch is needed.
     expect(getAttachmentMock).not.toHaveBeenCalled();
+  });
+
+  it("re-signs a cross-origin API image URL in the web editor", async () => {
+    // The web app normally uses the same-origin /api proxy, so getBaseUrl is
+    // empty. A self-hosted server can still persist an absolute markdown_url
+    // on a different origin, though. Native <img> loading cannot rely on the
+    // app session cookie being accepted by that host, while an authenticated
+    // metadata request can return a freshly signed storage URL.
+    configStore.setState({ cdnDomain: "cdn.example.test", cdnSigned: true });
+    const id = "11111111-2222-3333-4444-555555555555";
+    const markdownUrl = `https://api.example.test/api/attachments/${id}/download`;
+    const signed =
+      "https://cdn.example.test/uploads/ws/shot.png?Signature=fresh&Key-Pair-Id=K";
+    resolverState.attachments = [
+      makeRecord({
+        id,
+        url: "https://cdn.example.test/uploads/ws/shot.png",
+        markdown_url: markdownUrl,
+        download_url: `/api/attachments/${id}/download`,
+      }),
+    ];
+    getAttachmentMock.mockResolvedValue(makeRecord({ id, download_url: signed }));
+
+    renderWithQuery(
+      <Attachment
+        attachment={{
+          kind: "url",
+          url: markdownUrl,
+          filename: "shot.png",
+          forceKind: "image",
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector("img")?.getAttribute("src")).toBe(signed);
+    });
+    expect(getAttachmentMock).toHaveBeenCalledWith(id);
   });
 
   it("re-signs the inline media URL through getAttachment on token-mode clients (MUL-3254)", async () => {

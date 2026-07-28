@@ -321,11 +321,12 @@ const RESIGN_STALE_MS = 20 * 60 * 1000;
 // endpoint (e.g. a reopened issue draft, whose persisted record deliberately
 // strips the short-lived signed `download_url`). That endpoint needs
 // credentials: web loads it because the session cookie rides on the <img>
-// request (same-site), but Desktop's file:// renderer and the mobile webview
-// are cross-site — no cookie is attached and the Bearer token cannot be put
-// on a native resource fetch, so the image 401s. Those clients are exactly
-// the ones with a non-empty `api.getBaseUrl()` (no same-origin /api proxy),
-// which is the existing platform signal `absolutizeMediaURL` keys off.
+// request when it is genuinely same-origin. Desktop's file:// renderer, the
+// mobile webview, and split-origin web deployments cannot rely on that: no
+// cookie is attached and the Bearer token cannot be put on a native resource
+// fetch, so the image 401s. Desktop/mobile expose a non-empty
+// `api.getBaseUrl()`; web can also hit this path when the server emits an
+// absolute markdown URL whose origin differs from the current page.
 //
 // For them, fetch fresh attachment metadata through the authenticated API —
 // the same re-sign the click-time download path already does — and swap in
@@ -338,11 +339,21 @@ function useResignedInlineMediaURL(
 ): string {
   const idFromPickedUrl = attachmentIdFromDownloadURL(pickedUrl);
   const resignAttachmentId = attachmentId ?? idFromPickedUrl;
+  const isCrossOriginWebURL = (() => {
+    if (!/^https?:\/\//i.test(pickedUrl) || typeof window === "undefined") {
+      return false;
+    }
+    try {
+      return new URL(pickedUrl).origin !== window.location.origin;
+    } catch {
+      return false;
+    }
+  })();
   const needsResign =
     !!resignAttachmentId &&
     !!pickedUrl &&
     idFromPickedUrl !== undefined &&
-    (api.getBaseUrl?.() ?? "") !== "";
+    ((api.getBaseUrl?.() ?? "") !== "" || isCrossOriginWebURL);
 
   const { data: fresh } = useQuery({
     queryKey: ["attachment-inline-resign", resignAttachmentId],
