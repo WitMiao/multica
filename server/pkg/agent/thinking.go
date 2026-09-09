@@ -422,6 +422,8 @@ func parseCodexModelCatalog(raw []byte) ([]Model, error) {
 
 func normalizeCodexModelLabel(id, label string) string {
 	switch id {
+	case "gpt-6-astra":
+		return "GPT-6 Astra"
 	case "gpt-5.6-sol":
 		return "GPT-5.6 Sol"
 	case "gpt-5.6-terra":
@@ -632,9 +634,9 @@ func catalogLoader(ctx context.Context, providerType string, cmd Command) func()
 //
 //   - codex: the effective model comes from the user's local config.toml
 //     and can be ANY installed model, not necessarily the catalog's flagged
-//     Default. Borrowing the Default entry (gpt-5.6-sol, the only one
-//     advertising `ultra`) would green-light levels the actually-configured
-//     model may not support — Luna tops out at `max`, gpt-5.5/5.4 at `xhigh`
+//     Default. Borrowing the Default entry would green-light levels the
+//     actually-configured model may not support — Astra/Sol/Terra advertise
+//     `ultra`, Luna tops out at `max`, gpt-5.5/5.4 at `xhigh`
 //     — and Codex does not reject the mismatch itself. We can't know the
 //     effective model without parsing config.toml in the task cwd (see this
 //     file's Codex header for why that's avoided), so an empty codex model
