@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // fakeTypingAPIClient records reaction calls and can be programmed to fail.
@@ -94,10 +95,20 @@ func (f *fakeTypingAPIClient) ListMessageReactions(_ context.Context, p ListMess
 type noListerClient struct{ APIClient }
 
 type fakeTypingQueries struct {
+	ledgerMu     sync.Mutex
+	ledger       map[pgtype.UUID]db.ChannelTypingReaction
+	active       func(context.Context, db.IsChannelMessageTypingActiveParams) (bool, error)
 	binding      ChatSessionBinding
 	installation Installation
 	bindingErr   error
 	installErr   error
+}
+
+func (f *fakeTypingQueries) IsChannelMessageTypingActive(ctx context.Context, arg db.IsChannelMessageTypingActiveParams) (bool, error) {
+	if f.active != nil {
+		return f.active(ctx, arg)
+	}
+	return true, nil
 }
 
 func (f *fakeTypingQueries) GetLarkChatSessionBindingBySession(context.Context, pgtype.UUID) (ChatSessionBinding, error) {
@@ -121,7 +132,7 @@ func TestTypingIndicatorAddRecordsState(t *testing.T) {
 	inst := Installation{AppID: "cli_test", Region: "feishu"}
 	session := pgtype.UUID{Bytes: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, Valid: true}
 
-	mgr.Add(context.Background(), inst, session, "msg-1", "")
+	mgr.Add(context.Background(), inst, session, "msg-1", "", session)
 
 	if len(api.addCalled) != 1 {
 		t.Fatalf("expected 1 add call, got %d", len(api.addCalled))
@@ -146,7 +157,7 @@ func TestTypingIndicatorAddSkipsOnEmptyMessageID(t *testing.T) {
 	inst := Installation{AppID: "cli_test", Region: "feishu"}
 	session := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 
-	mgr.Add(context.Background(), inst, session, "", "")
+	mgr.Add(context.Background(), inst, session, "", "", session)
 
 	if len(api.addCalled) != 0 {
 		t.Fatalf("expected 0 add calls, got %d", len(api.addCalled))
@@ -161,7 +172,7 @@ func TestTypingIndicatorAddSkipsOldMessages(t *testing.T) {
 	session := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 
 	oldTime := time.Now().Add(-3 * time.Minute).UnixMilli()
-	mgr.Add(context.Background(), inst, session, "msg-old", strconv.FormatInt(oldTime, 10))
+	mgr.Add(context.Background(), inst, session, "msg-old", strconv.FormatInt(oldTime, 10), session)
 
 	if len(api.addCalled) != 0 {
 		t.Fatalf("expected 0 add calls for old message, got %d", len(api.addCalled))
@@ -175,7 +186,7 @@ func TestTypingIndicatorAddLogsOnAPIError(t *testing.T) {
 	inst := Installation{AppID: "cli_test", Region: "feishu"}
 	session := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 
-	mgr.Add(context.Background(), inst, session, "msg-1", "")
+	mgr.Add(context.Background(), inst, session, "msg-1", "", session)
 
 	if len(api.addCalled) != 1 {
 		t.Fatalf("expected 1 add call, got %d", len(api.addCalled))
@@ -190,7 +201,7 @@ func TestTypingIndicatorAddLogsOnAPIError(t *testing.T) {
 	}
 }
 
-func TestTypingIndicatorClearDeletesReactions(t *testing.T) {
+func TestTypingIndicatorReconcileDeletesReactions(t *testing.T) {
 	api := &fakeTypingAPIClient{addReturn: "reaction-abc"}
 	queries := &fakeTypingQueries{
 		binding: ChatSessionBinding{
@@ -207,12 +218,12 @@ func TestTypingIndicatorClearDeletesReactions(t *testing.T) {
 	inst := Installation{AppID: "cli_test", Region: "feishu"}
 	session := pgtype.UUID{Bytes: [16]byte{1, 2, 3, 4}, Valid: true}
 
-	mgr.Add(context.Background(), inst, session, "msg-1", "")
+	mgr.Add(context.Background(), inst, session, "msg-1", "", session)
 	if len(api.addCalled) != 1 {
 		t.Fatal("add should have been called")
 	}
 
-	mgr.Clear(context.Background(), session)
+	mgr.Reconcile(context.Background(), session)
 
 	if len(api.deleteCalled) != 1 {
 		t.Fatalf("expected 1 delete call, got %d", len(api.deleteCalled))
@@ -230,7 +241,7 @@ func TestTypingIndicatorClearDeletesReactions(t *testing.T) {
 	}
 }
 
-func TestTypingIndicatorClearNoOpWhenEmpty(t *testing.T) {
+func TestTypingIndicatorReconcileNoOpWhenEmpty(t *testing.T) {
 	api := &fakeTypingAPIClient{}
 	queries := &fakeTypingQueries{
 		binding: ChatSessionBinding{
@@ -245,14 +256,14 @@ func TestTypingIndicatorClearNoOpWhenEmpty(t *testing.T) {
 	mgr := NewTypingIndicatorManager(api, fakeTypingCreds{secret: "shh"}, queries, newDiscardLogger())
 
 	session := pgtype.UUID{Bytes: [16]byte{1, 2, 3, 4}, Valid: true}
-	mgr.Clear(context.Background(), session)
+	mgr.Reconcile(context.Background(), session)
 
 	if len(api.deleteCalled) != 0 {
 		t.Fatalf("expected 0 delete calls when empty, got %d", len(api.deleteCalled))
 	}
 }
 
-func TestTypingIndicatorClearLogsOnDeleteError(t *testing.T) {
+func TestTypingIndicatorReconcileLogsOnDeleteError(t *testing.T) {
 	api := &fakeTypingAPIClient{addReturn: "reaction-xyz", deleteErr: errors.New("delete failed")}
 	queries := &fakeTypingQueries{
 		binding: ChatSessionBinding{
@@ -269,8 +280,8 @@ func TestTypingIndicatorClearLogsOnDeleteError(t *testing.T) {
 	inst := Installation{AppID: "cli_test", Region: "feishu"}
 	session := pgtype.UUID{Bytes: [16]byte{1, 2, 3, 4}, Valid: true}
 
-	mgr.Add(context.Background(), inst, session, "msg-1", "")
-	mgr.Clear(context.Background(), session)
+	mgr.Add(context.Background(), inst, session, "msg-1", "", session)
+	mgr.Reconcile(context.Background(), session)
 
 	if len(api.deleteCalled) != 1 {
 		t.Fatalf("expected 1 delete call attempt, got %d", len(api.deleteCalled))
@@ -294,14 +305,14 @@ func TestTypingIndicatorMultipleMessagesPerSession(t *testing.T) {
 	inst := Installation{AppID: "cli_test", Region: "feishu"}
 	session := pgtype.UUID{Bytes: [16]byte{1, 2, 3, 4}, Valid: true}
 
-	mgr.Add(context.Background(), inst, session, "msg-a", "")
-	mgr.Add(context.Background(), inst, session, "msg-b", "")
+	mgr.Add(context.Background(), inst, session, "msg-a", "", session)
+	mgr.Add(context.Background(), inst, session, "msg-b", "", session)
 
 	if len(api.addCalled) != 2 {
 		t.Fatalf("expected 2 add calls, got %d", len(api.addCalled))
 	}
 
-	mgr.Clear(context.Background(), session)
+	mgr.Reconcile(context.Background(), session)
 
 	if len(api.deleteCalled) != 2 {
 		t.Fatalf("expected 2 delete calls, got %d", len(api.deleteCalled))
@@ -328,13 +339,13 @@ func TestTypingIndicatorConcurrentAddAndClear(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		for i := 0; i < 50; i++ {
-			mgr.Add(context.Background(), inst, session, "msg", "")
+			mgr.Add(context.Background(), inst, session, "msg", "", session)
 		}
 		close(done)
 	}()
 	go func() {
 		for i := 0; i < 50; i++ {
-			mgr.Clear(context.Background(), session)
+			mgr.Reconcile(context.Background(), session)
 		}
 	}()
 	<-done
@@ -346,7 +357,7 @@ func TestTypingIndicatorConcurrentAddAndClear(t *testing.T) {
 // the time the cancel arrives. The reaction is still on the message and the
 // state has already been taken off the map, so the snapshot recorded at add
 // time is the only thing left that can remove it.
-func TestTypingIndicatorClearsAfterTheInstallationIsDeleted(t *testing.T) {
+func TestTypingIndicatorReconcilesAfterTheInstallationIsDeleted(t *testing.T) {
 	api := &fakeTypingAPIClient{addReturn: "reaction-123"}
 	queries := &fakeTypingQueries{}
 	mgr := NewTypingIndicatorManager(api, fakeTypingCreds{secret: "shh"}, queries, newDiscardLogger())
@@ -358,7 +369,7 @@ func TestTypingIndicatorClearsAfterTheInstallationIsDeleted(t *testing.T) {
 	}
 	session := pgtype.UUID{Bytes: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, Valid: true}
 
-	mgr.Add(context.Background(), inst, session, "msg-1", "")
+	mgr.Add(context.Background(), inst, session, "msg-1", "", session)
 	if len(api.addCalled) != 1 {
 		t.Fatalf("setup: the reaction should be on the message; adds = %d", len(api.addCalled))
 	}
@@ -366,7 +377,7 @@ func TestTypingIndicatorClearsAfterTheInstallationIsDeleted(t *testing.T) {
 	// The teardown transaction has committed.
 	queries.installErr = pgx.ErrNoRows
 
-	mgr.Clear(context.Background(), session)
+	mgr.Reconcile(context.Background(), session)
 
 	if len(api.deleteCalled) != 1 {
 		t.Fatalf("the runtime was torn down and its installation deleted, but the reaction is still "+
@@ -390,10 +401,10 @@ func TestTypingIndicatorDoesNotFallBackOnATransientLookupFailure(t *testing.T) {
 	}
 	session := pgtype.UUID{Bytes: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, Valid: true}
 
-	mgr.Add(context.Background(), inst, session, "msg-1", "")
+	mgr.Add(context.Background(), inst, session, "msg-1", "", session)
 	queries.installErr = errors.New("connection reset")
 
-	mgr.Clear(context.Background(), session)
+	mgr.Reconcile(context.Background(), session)
 
 	if len(api.deleteCalled) != 0 {
 		t.Fatalf("a transient lookup failure fell back to the snapshot; deletes = %d", len(api.deleteCalled))
@@ -482,5 +493,23 @@ func TestTypingIndicatorSweepDoesNotDeleteWhenTheListFails(t *testing.T) {
 
 	if len(api.deleteCalled) != 0 {
 		t.Fatalf("deleted reactions without a successful list; deletes = %+v", api.deleteCalled)
+	}
+}
+
+func TestTypingAddRetractsUnverifiedInputWithIndependentContext(t *testing.T) {
+	api := &fakeTypingAPIClient{addReturn: "unverified-reaction"}
+	queries := &fakeTypingQueries{active: func(ctx context.Context, _ db.IsChannelMessageTypingActiveParams) (bool, error) {
+		if ctx.Err() != nil {
+			t.Fatalf("lifecycle check inherited expired Add context: %v", ctx.Err())
+		}
+		return false, errors.New("database unavailable")
+	}}
+	manager := NewTypingIndicatorManager(api, fakeTypingCreds{secret: "shh"}, queries, newDiscardLogger())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Model a successful response delivered after the caller cancelled.
+	session := uuidFromString(t, "ee777777-ee77-ee77-ee77-eeeeeeeeeeee")
+	manager.Add(ctx, Installation{AppID: "cli_test", Region: "feishu"}, session, "trigger", "", session)
+	if len(api.deleteCalled) != 1 || api.deleteCalled[0].reactionID != "unverified-reaction" || len(manager.states) != 0 {
+		t.Fatalf("unverified Add survived: deletes=%+v states=%+v", api.deleteCalled, manager.states)
 	}
 }

@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strconv"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/dbid"
 )
 
 // typingEmoji is the Lark emoji_type used for the "processing" indicator.
@@ -25,40 +29,19 @@ const typingIndicatorMaxAge = 2 * time.Minute
 // typingCleanupTimeout bounds best-effort cleanup independently of reply delivery.
 const typingCleanupTimeout = 2 * time.Second
 
-// TypingIndicatorState holds the identifiers needed to remove a reaction, plus
-// the installation whose app credentials added it. The installation id is
-// recorded at add time because that is the last moment it is certainly
-// resolvable: it is reachable from the session's channel_chat_session_binding
-// row, and a session delete drops that row while the cancel it triggers is
-// still on its way to the Patcher.
+// TypingIndicatorState is a process-local view of one durable cleanup record.
+// It never owns the only copy of a remote reaction's cleanup anchor.
 type TypingIndicatorState struct {
-	MessageID      string
-	ReactionID     string
-	InstallationID pgtype.UUID
-
-	// ended is set under mu when Clear takes this add, even before HTTP returns.
-	ended bool
-
-	// installSnapshot is the installation row as it stood when the reaction was
-	// added, kept for the one case where the id is no longer enough: a runtime
-	// teardown deletes the installation inside the same transaction that
-	// cancels the tasks (handler/runtime.go,
-	// DeleteChannelInstallationsBySystemRuntimeAgents), so by the time the
-	// cancel reaches Clear there is no row to resolve.
-	//
-	// It is a FALLBACK, never the primary. A live lookup picks up a credential
-	// rotation between add and clear; a snapshot cannot, so it is consulted
-	// only when the row is genuinely gone.
-	//
-	// It does not weaken "no decrypted secret lives in the state map": what is
-	// held here is the same encrypted blob the database holds, and
-	// DecryptAppSecret still runs at clear time.
-	installSnapshot Installation
+	LedgerID              pgtype.UUID
+	MessageID, ReactionID string
+	ended                 bool // guarded by mu; Reconcile may end an Add before HTTP returns.
 }
 
 // TypingIndicatorQueries is the narrow DB surface the manager needs.
 type TypingIndicatorQueries interface {
+	typingLedgerQueries
 	GetLarkInstallation(ctx context.Context, id pgtype.UUID) (Installation, error)
+	IsChannelMessageTypingActive(ctx context.Context, arg db.IsChannelMessageTypingActiveParams) (bool, error)
 }
 
 // TypingIndicatorManager owns the "processing" reaction lifecycle for
@@ -96,14 +79,15 @@ func NewTypingIndicatorManager(client APIClient, credentials CredentialsResolver
 }
 
 // Add sends a Typing reaction to the given message and records the state
-// under the chat session. It is synchronous — the caller decides whether
+// under the chat session. chatMessageID is the immutable persisted user input,
+// not the platform message ID or the latest task in the session. It is synchronous — the caller decides whether
 // to run it in a detached goroutine. Errors are logged and swallowed.
 //
 // createTime is Lark's epoch-millisecond string (InboundMessage.CreateTime).
 // Messages older than typingIndicatorMaxAge are silently skipped so that
 // WebSocket replays and stale reconnects do not surface misleading "processing"
 // badges on long-finished conversations.
-func (m *TypingIndicatorManager) Add(ctx context.Context, inst Installation, chatSessionID pgtype.UUID, messageID string, createTime string) {
+func (m *TypingIndicatorManager) Add(ctx context.Context, inst Installation, chatSessionID pgtype.UUID, messageID string, createTime string, chatMessageID pgtype.UUID) {
 	if messageID == "" {
 		return
 	}
@@ -125,8 +109,34 @@ func (m *TypingIndicatorManager) Add(ctx context.Context, inst Installation, cha
 		return
 	}
 
+	// The external anchor must be committed before HTTP can create a badge.
+	// No registration means no Add: terminal workers must never miss an input.
+	snapshot, err := json.Marshal(Installation{ID: inst.ID, WorkspaceID: inst.WorkspaceID, AppID: inst.AppID, AppSecretEncrypted: inst.AppSecretEncrypted, TenantKey: inst.TenantKey, Region: inst.Region})
+	if err != nil {
+		m.log.Warn("lark typing: encode installation snapshot", "err", err)
+		return
+	}
+	registrationCtx, registrationCancel := context.WithTimeout(context.WithoutCancel(ctx), typingCleanupTimeout)
+	row, err := m.queries.RegisterChannelTypingReaction(registrationCtx, db.RegisterChannelTypingReactionParams{
+		ID: dbid.NewV7(), WorkspaceID: inst.WorkspaceID, ChatSessionID: chatSessionID,
+		ChatMessageID: chatMessageID, InstallationID: inst.ID, ChannelMessageID: messageID, InstallationSnapshot: snapshot,
+	})
+	registrationCancel()
+	if err != nil {
+		m.log.Warn("lark typing: register cleanup anchor", "message_id", messageID, "err", err)
+		return
+	}
+	if row.CleanupRequired {
+		skipCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), typingCleanupTimeout)
+		defer cancel()
+		if err := m.queries.SkipChannelTypingReactionAdd(skipCtx, row.ID); err != nil {
+			m.log.Warn("lark typing: acknowledge skipped add", "err", err)
+		}
+		return
+	}
+
 	key := uuidString(chatSessionID)
-	state := &TypingIndicatorState{MessageID: messageID, InstallationID: inst.ID, installSnapshot: inst}
+	state := &TypingIndicatorState{LedgerID: row.ID, MessageID: messageID}
 	m.mu.Lock()
 	m.states[key] = append(m.states[key], state)
 	m.mu.Unlock()
@@ -138,16 +148,15 @@ func (m *TypingIndicatorManager) Add(ctx context.Context, inst Installation, cha
 	})
 	if err != nil {
 		m.mu.Lock()
-		for i, pending := range m.states[key] {
-			if pending == state {
-				m.states[key] = append(m.states[key][:i], m.states[key][i+1:]...)
-				if len(m.states[key]) == 0 {
-					delete(m.states, key)
-				}
-				break
-			}
-		}
+		m.removeState(key, state)
 		m.mu.Unlock()
+		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), typingCleanupTimeout)
+		defer cancel()
+		// A transport failure does not prove the remote side did not add it.
+		// Keep the anchor in the durable retry queue, including across restart.
+		if _, finishErr := m.queries.FinishChannelTypingReactionAdd(finishCtx, db.FinishChannelTypingReactionAddParams{ID: row.ID, CleanupRequired: true}); finishErr != nil {
+			m.log.Warn("lark typing: record uncertain Add", "err", finishErr)
+		}
 		m.log.Warn("lark typing indicator: add reaction failed",
 			"chat_session_id", uuidString(chatSessionID),
 			"message_id", messageID,
@@ -156,22 +165,48 @@ func (m *TypingIndicatorManager) Add(ctx context.Context, inst Installation, cha
 		return
 	}
 
+	// The terminal event may have been handled by another process while the
+	// remote Add was in flight. Re-read this exact persisted input after the
+	// remote write so a committed terminal state retracts the late result.
+	// A session's latest
+	// task/delivery is not sufficient: debounce can seal several inputs and a
+	// newer turn may already exist. Missing/deleted inputs are no longer live.
+	checkCtx, checkCancel := context.WithTimeout(context.WithoutCancel(ctx), typingCleanupTimeout)
+	active, checkErr := m.queries.IsChannelMessageTypingActive(checkCtx, db.IsChannelMessageTypingActiveParams{
+		MessageID: chatMessageID, ChatSessionID: chatSessionID,
+		WorkspaceID: inst.WorkspaceID, InstallationID: inst.ID,
+		ChannelType: channelTypeFeishu,
+	})
+	checkCancel()
+	if checkErr != nil {
+		// An unverified processing badge must not survive indefinitely.
+		m.log.Warn("lark typing indicator: input lifecycle lookup failed", "message_id", messageID, "err", checkErr)
+	}
+
 	m.mu.Lock()
-	ended := state.ended
-	if !ended {
+	ended := state.ended || !active || checkErr != nil
+	m.mu.Unlock()
+	finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), typingCleanupTimeout)
+	finished, finishErr := m.queries.FinishChannelTypingReactionAdd(finishCtx, db.FinishChannelTypingReactionAddParams{ID: row.ID, ReactionID: reactionID, CleanupRequired: ended})
+	finishCancel()
+	if finishErr != nil {
+		m.log.Warn("lark typing: record Add result; durable unfinished anchor remains", "err", finishErr)
+		row.ReactionID = reactionID
+		row.CleanupRequired = true
+		finished = row
+	}
+	m.mu.Lock()
+	ended = ended || state.ended || finished.CleanupRequired || finishErr != nil
+	if ended {
+		m.removeState(key, state)
+	} else {
 		state.ReactionID = reactionID
 	}
 	m.mu.Unlock()
 	if ended {
-		// Clear owns this add's generation. Do not attach its late result to a
-		// newer turn, and do not reuse an add context that may have expired.
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), typingCleanupTimeout)
 		defer cancel()
-		if err := m.client.DeleteMessageReaction(cleanupCtx, DeleteReactionParams{
-			InstallationID: creds, MessageID: messageID, ReactionID: reactionID,
-		}); err != nil {
-			m.log.Warn("lark typing indicator: late add cleanup failed", "message_id", messageID, "err", err)
-		}
+		m.cleanupReaction(cleanupCtx, finished)
 		return
 	}
 
@@ -182,73 +217,16 @@ func (m *TypingIndicatorManager) Add(ctx context.Context, inst Installation, cha
 	)
 }
 
-// Clear removes every tracked Typing reaction for the chat session and
-// drops the state entry. Pending adds are marked ended so their late results
-// remove themselves. Calls are synchronous and bounded by the caller's context.
-// Individual delete failures are logged but do not abort the loop.
-//
-// Credentials come from the installation each state recorded, not from the
-// session's binding, because a clear can outlive that binding: deleting a chat
-// session drops the binding row inside the same transaction that cancels the
-// session's tasks, and the task:cancelled events that reach the Patcher are
-// broadcast after that transaction commits. A binding lookup would miss, and
-// since the state has already been taken here, there would be nothing left to
-// clear from. Installation rows survive a session delete.
-//
-// They do NOT survive a runtime teardown, which deletes them in the same
-// transaction — so each state also carries the installation as it stood at add
-// time, consulted only when the row is gone. See TypingIndicatorState.
-func (m *TypingIndicatorManager) Clear(ctx context.Context, chatSessionID pgtype.UUID) {
-	key := uuidString(chatSessionID)
-	m.mu.Lock()
-	states := m.states[key]
-	for _, state := range states {
-		state.ended = true
-	}
-	delete(m.states, key)
-	m.mu.Unlock()
-
-	if len(states) == 0 {
-		return
-	}
-
-	// One session's reactions normally share an installation, so the resolved
-	// credentials are memoised; a session rebound to another installation
-	// mid-run still clears every reaction through the app that added it. A nil
-	// entry records an installation that failed to resolve, so it is not
-	// retried once per reaction.
-	resolved := make(map[string]*InstallationCredentials, 1)
-	for _, s := range states {
-		if s.ReactionID == "" {
-			continue
+// removeState removes only this Add's entry, preserving later inputs. mu must be held.
+func (m *TypingIndicatorManager) removeState(key string, state *TypingIndicatorState) {
+	for i, pending := range m.states[key] {
+		if pending == state {
+			m.states[key] = append(m.states[key][:i], m.states[key][i+1:]...)
+			if len(m.states[key]) == 0 {
+				delete(m.states, key)
+			}
+			return
 		}
-		instKey := uuidString(s.InstallationID)
-		creds, seen := resolved[instKey]
-		if !seen {
-			creds = m.credentialsForInstallation(ctx, key, s.InstallationID, s.installSnapshot)
-			resolved[instKey] = creds
-		}
-		if creds == nil {
-			continue
-		}
-		if err := m.client.DeleteMessageReaction(ctx, DeleteReactionParams{
-			InstallationID: *creds,
-			MessageID:      s.MessageID,
-			ReactionID:     s.ReactionID,
-		}); err != nil {
-			m.log.Warn("lark typing indicator: delete reaction failed",
-				"chat_session_id", key,
-				"message_id", s.MessageID,
-				"reaction_id", s.ReactionID,
-				"err", err,
-			)
-			continue
-		}
-		m.log.Debug("lark typing indicator: reaction removed",
-			"chat_session_id", key,
-			"message_id", s.MessageID,
-			"reaction_id", s.ReactionID,
-		)
 	}
 }
 
@@ -258,8 +236,8 @@ func (m *TypingIndicatorManager) Clear(ctx context.Context, chatSessionID pgtype
 // state map only exists in the process that ran Add, so a restart between add
 // and clear or a second replica handling completion leaves the map empty
 // while the badge is still on screen. In-flight adds are handled separately
-// by the ended marker in Add/Clear. The sweep also retries reactions whose
-// exact deletion failed in Clear.
+// by the durable pending-Add record. The sweep also retries reactions whose
+// exact deletion failed during reconciliation.
 //
 // It deletes only reactions whose operator_type is "app". Lark lets a bot
 // delete solely what it added, so a human's own Typing reaction is untouchable

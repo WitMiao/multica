@@ -866,7 +866,7 @@ func TestPatcherClearsTypingOnTaskCancelled(t *testing.T) {
 	bus := events.New()
 	p.Register(bus)
 
-	typing.Add(context.Background(), q.installation, q.binding.ChatSessionID, "om_trigger", "")
+	typing.Add(context.Background(), q.installation, q.binding.ChatSessionID, "om_trigger", "", q.binding.ChatSessionID)
 	if len(typingAPI.addCalled) != 1 {
 		t.Fatalf("setup: expected the Typing reaction to be added, got %d", len(typingAPI.addCalled))
 	}
@@ -928,7 +928,7 @@ func TestPatcherClearsTypingAfterSessionDeleteRemovedTheBinding(t *testing.T) {
 	p.Register(bus)
 
 	sessionID := q.binding.ChatSessionID
-	typing.Add(context.Background(), q.installation, sessionID, "om_trigger", "")
+	typing.Add(context.Background(), q.installation, sessionID, "om_trigger", "", sessionID)
 	if len(typingAPI.addCalled) != 1 {
 		t.Fatalf("setup: expected the Typing reaction to be added, got %d", len(typingAPI.addCalled))
 	}
@@ -1075,7 +1075,7 @@ func TestPatcherClearsTypingStateWhenTaskIsNotChannelIngested(t *testing.T) {
 		&fakeTypingQueries{binding: q.binding, installation: q.installation}, newDiscardLogger())
 	p.SetTypingIndicatorManager(typing)
 
-	typing.Add(context.Background(), q.installation, q.binding.ChatSessionID, "om_earlier_turn", "")
+	typing.Add(context.Background(), q.installation, q.binding.ChatSessionID, "om_earlier_turn", "", q.binding.ChatSessionID)
 	if len(typingAPI.addCalled) != 1 {
 		t.Fatalf("setup: expected the Typing reaction to be added, got %d", len(typingAPI.addCalled))
 	}

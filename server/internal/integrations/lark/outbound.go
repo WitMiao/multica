@@ -315,8 +315,8 @@ func (p *Patcher) processEvent(ctx context.Context, e events.Event) error {
 		defer func() {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), typingCleanupTimeout)
 			defer cancel()
-			p.typingIndicator.Clear(cleanupCtx, chatSessionID)
-			p.sweepTypingForTask(cleanupCtx, taskID, e.ChannelReactionTarget)
+			covered := p.typingIndicator.Reconcile(cleanupCtx, chatSessionID)
+			p.sweepTypingForTask(cleanupCtx, taskID, e.ChannelReactionTarget, covered)
 		}()
 	}
 	if e.Type == protocol.EventTaskCancelled {
@@ -388,7 +388,7 @@ func (p *Patcher) processEvent(ctx context.Context, e events.Event) error {
 
 // sweepTypingForTask uses the frozen trigger message. Session deletion carries
 // that anchor on the internal event before deleting the delivery row.
-func (p *Patcher) sweepTypingForTask(ctx context.Context, taskID pgtype.UUID, target *events.ChannelReactionTarget) {
+func (p *Patcher) sweepTypingForTask(ctx context.Context, taskID pgtype.UUID, target *events.ChannelReactionTarget, covered map[string]bool) {
 	delivery, err := p.queries.GetChannelTaskDelivery(ctx, taskID)
 	if errors.Is(err, pgx.ErrNoRows) && target != nil {
 		installationID, parseErr := util.ParseUUID(target.InstallationID)
@@ -411,6 +411,9 @@ func (p *Patcher) sweepTypingForTask(ctx context.Context, taskID pgtype.UUID, ta
 		return
 	}
 	if delivery.ChannelType != channelTypeFeishu || !delivery.ChannelMessageID.Valid || delivery.ChannelMessageID.String == "" {
+		return
+	}
+	if covered[uuidString(delivery.InstallationID)+"/"+delivery.ChannelMessageID.String] {
 		return
 	}
 	inst, err := p.queries.GetLarkInstallation(ctx, delivery.InstallationID)

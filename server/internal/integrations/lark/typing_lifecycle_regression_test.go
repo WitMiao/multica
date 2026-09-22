@@ -52,7 +52,10 @@ func TestPatcherTerminalEventDuringTypingAdd(t *testing.T) {
 			var release sync.Once
 			defer release.Do(func() { close(api.release) })
 			done := make(chan struct{})
-			go func() { defer close(done); mgr.Add(ctx, q.installation, q.binding.ChatSessionID, "trigger", "") }()
+			go func() {
+				defer close(done)
+				mgr.Add(ctx, q.installation, q.binding.ChatSessionID, "trigger", "", q.binding.ChatSessionID)
+			}()
 			select {
 			case <-api.started:
 			case <-ctx.Done():
@@ -63,7 +66,7 @@ func TestPatcherTerminalEventDuringTypingAdd(t *testing.T) {
 				t.Fatal("terminal event must finish its empty sweep while Add is blocked")
 			}
 			// A later turn must survive cleanup of the older in-flight generation.
-			mgr.Add(ctx, q.installation, q.binding.ChatSessionID, "next-trigger", "")
+			mgr.Add(ctx, q.installation, q.binding.ChatSessionID, "next-trigger", "", q.binding.ChatSessionID)
 			cancel() // Late cleanup must also survive cancellation of the add context.
 			release.Do(func() { close(api.release) })
 			select {
@@ -136,7 +139,7 @@ func TestPatcherClearsTypingBeforeTerminalGates(t *testing.T) {
 				api := &fakeTypingAPIClient{addReturn: "held-reaction"}
 				mgr := NewTypingIndicatorManager(api, fakeTypingCreds{secret: "shh"}, &fakeTypingQueries{installation: q.installation}, newDiscardLogger())
 				p.SetTypingIndicatorManager(mgr)
-				mgr.Add(context.Background(), q.installation, q.binding.ChatSessionID, "trigger", "")
+				mgr.Add(context.Background(), q.installation, q.binding.ChatSessionID, "trigger", "", q.binding.ChatSessionID)
 				if gate == "inactive installation" {
 					q.installation.Status = "revoked"
 				} else {
