@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,9 @@ const typingEmoji = "Typing"
 // reconnect replays old events. Aligned with OpenClaw's 2-minute bound.
 const typingIndicatorMaxAge = 2 * time.Minute
 
+// typingCleanupTimeout bounds best-effort cleanup independently of reply delivery.
+const typingCleanupTimeout = 2 * time.Second
+
 // TypingIndicatorState holds the identifiers needed to remove a reaction, plus
 // the installation whose app credentials added it. The installation id is
 // recorded at add time because that is the last moment it is certainly
@@ -31,6 +35,9 @@ type TypingIndicatorState struct {
 	MessageID      string
 	ReactionID     string
 	InstallationID pgtype.UUID
+
+	// ended is set under mu when Clear takes this add, even before HTTP returns.
+	ended bool
 
 	// installSnapshot is the installation row as it stood when the reaction was
 	// added, kept for the one case where the id is no longer enough: a runtime
@@ -118,12 +125,29 @@ func (m *TypingIndicatorManager) Add(ctx context.Context, inst Installation, cha
 		return
 	}
 
+	key := uuidString(chatSessionID)
+	state := &TypingIndicatorState{MessageID: messageID, InstallationID: inst.ID, installSnapshot: inst}
+	m.mu.Lock()
+	m.states[key] = append(m.states[key], state)
+	m.mu.Unlock()
+
 	reactionID, err := m.client.AddMessageReaction(ctx, AddReactionParams{
 		InstallationID: creds,
 		MessageID:      messageID,
 		EmojiType:      typingEmoji,
 	})
 	if err != nil {
+		m.mu.Lock()
+		for i, pending := range m.states[key] {
+			if pending == state {
+				m.states[key] = append(m.states[key][:i], m.states[key][i+1:]...)
+				if len(m.states[key]) == 0 {
+					delete(m.states, key)
+				}
+				break
+			}
+		}
+		m.mu.Unlock()
 		m.log.Warn("lark typing indicator: add reaction failed",
 			"chat_session_id", uuidString(chatSessionID),
 			"message_id", messageID,
@@ -132,15 +156,24 @@ func (m *TypingIndicatorManager) Add(ctx context.Context, inst Installation, cha
 		return
 	}
 
-	key := uuidString(chatSessionID)
 	m.mu.Lock()
-	m.states[key] = append(m.states[key], &TypingIndicatorState{
-		MessageID:       messageID,
-		ReactionID:      reactionID,
-		InstallationID:  inst.ID,
-		installSnapshot: inst,
-	})
+	ended := state.ended
+	if !ended {
+		state.ReactionID = reactionID
+	}
 	m.mu.Unlock()
+	if ended {
+		// Clear owns this add's generation. Do not attach its late result to a
+		// newer turn, and do not reuse an add context that may have expired.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), typingCleanupTimeout)
+		defer cancel()
+		if err := m.client.DeleteMessageReaction(cleanupCtx, DeleteReactionParams{
+			InstallationID: creds, MessageID: messageID, ReactionID: reactionID,
+		}); err != nil {
+			m.log.Warn("lark typing indicator: late add cleanup failed", "message_id", messageID, "err", err)
+		}
+		return
+	}
 
 	m.log.Debug("lark typing indicator: reaction added",
 		"chat_session_id", key,
@@ -150,8 +183,8 @@ func (m *TypingIndicatorManager) Add(ctx context.Context, inst Installation, cha
 }
 
 // Clear removes every tracked Typing reaction for the chat session and
-// drops the state entry. It is synchronous so the reaction is gone before
-// the agent's reply is sent, giving the user a clean visual transition.
+// drops the state entry. Pending adds are marked ended so their late results
+// remove themselves. Calls are synchronous and bounded by the caller's context.
 // Individual delete failures are logged but do not abort the loop.
 //
 // Credentials come from the installation each state recorded, not from the
@@ -169,6 +202,9 @@ func (m *TypingIndicatorManager) Clear(ctx context.Context, chatSessionID pgtype
 	key := uuidString(chatSessionID)
 	m.mu.Lock()
 	states := m.states[key]
+	for _, state := range states {
+		state.ended = true
+	}
 	delete(m.states, key)
 	m.mu.Unlock()
 
@@ -212,6 +248,70 @@ func (m *TypingIndicatorManager) Clear(ctx context.Context, chatSessionID pgtype
 			"chat_session_id", key,
 			"message_id", s.MessageID,
 			"reaction_id", s.ReactionID,
+		)
+	}
+}
+
+// SweepMessage removes every Typing reaction the bot itself put on a message,
+// found by listing the message's reactions from Lark rather than by consulting
+// the in-memory state. This is the authoritative half of the lifecycle: the
+// state map only exists in the process that ran Add, so a restart between add
+// and clear or a second replica handling completion leaves the map empty
+// while the badge is still on screen. In-flight adds are handled separately
+// by the ended marker in Add/Clear. The sweep also retries reactions whose
+// exact deletion failed in Clear.
+//
+// It deletes only reactions whose operator_type is "app". Lark lets a bot
+// delete solely what it added, so a human's own Typing reaction is untouchable
+// anyway; the filter keeps the sweep from burning delete calls (and warning
+// logs) on reactions it could never remove.
+//
+// credentials came from the caller, which resolves them from the same
+// installation that added the reaction; errors are logged and swallowed — the
+// indicator is best-effort and must never fail a reply. A client that does not
+// implement ReactionLister (the stub, minimal fakes) skips the sweep.
+func (m *TypingIndicatorManager) SweepMessage(ctx context.Context, creds InstallationCredentials, messageID string) {
+	if messageID == "" {
+		return
+	}
+	lister, ok := m.client.(ReactionLister)
+	if !ok {
+		m.log.Debug("lark typing indicator: client cannot list reactions, skipping sweep",
+			"message_id", messageID,
+		)
+		return
+	}
+	reactions, err := lister.ListMessageReactions(ctx, ListMessageReactionsParams{
+		InstallationID: creds,
+		MessageID:      messageID,
+		EmojiType:      typingEmoji,
+	})
+	if err != nil {
+		m.log.Warn("lark typing indicator: sweep list reactions failed",
+			"message_id", messageID,
+			"err", err,
+		)
+		return
+	}
+	for _, r := range reactions {
+		if !strings.EqualFold(r.EmojiType, typingEmoji) || r.OperatorType != "app" {
+			continue
+		}
+		if err := m.client.DeleteMessageReaction(ctx, DeleteReactionParams{
+			InstallationID: creds,
+			MessageID:      messageID,
+			ReactionID:     r.ReactionID,
+		}); err != nil {
+			m.log.Warn("lark typing indicator: sweep delete reaction failed",
+				"message_id", messageID,
+				"reaction_id", r.ReactionID,
+				"err", err,
+			)
+			continue
+		}
+		m.log.Debug("lark typing indicator: sweep removed reaction",
+			"message_id", messageID,
+			"reaction_id", r.ReactionID,
 		)
 	}
 }

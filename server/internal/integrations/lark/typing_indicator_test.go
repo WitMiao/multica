@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,8 +14,12 @@ import (
 
 // fakeTypingAPIClient records reaction calls and can be programmed to fail.
 type fakeTypingAPIClient struct {
+	mu           sync.Mutex
 	addCalled    []addReactionCall
 	deleteCalled []deleteReactionCall
+	listCalled   []string
+	listReturn   []MessageReaction
+	listErr      error
 	addErr       error
 	deleteErr    error
 	addReturn    string
@@ -64,13 +69,29 @@ func (f *fakeTypingAPIClient) BatchGetUsers(context.Context, InstallationCredent
 	return nil, nil
 }
 func (f *fakeTypingAPIClient) AddMessageReaction(_ context.Context, p AddReactionParams) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.addCalled = append(f.addCalled, addReactionCall{p.InstallationID, p.MessageID, p.EmojiType})
 	return f.addReturn, f.addErr
 }
 func (f *fakeTypingAPIClient) DeleteMessageReaction(_ context.Context, p DeleteReactionParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.deleteCalled = append(f.deleteCalled, deleteReactionCall{p.InstallationID, p.MessageID, p.ReactionID})
 	return f.deleteErr
 }
+
+func (f *fakeTypingAPIClient) ListMessageReactions(_ context.Context, p ListMessageReactionsParams) ([]MessageReaction, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.listCalled = append(f.listCalled, p.MessageID)
+	return f.listReturn, f.listErr
+}
+
+// noListerClient wraps an APIClient without promoting any extra methods, so it
+// satisfies APIClient but not ReactionLister — the shape of a client that
+// cannot answer "what is already on this message".
+type noListerClient struct{ APIClient }
 
 type fakeTypingQueries struct {
 	binding      ChatSessionBinding
@@ -376,5 +397,90 @@ func TestTypingIndicatorDoesNotFallBackOnATransientLookupFailure(t *testing.T) {
 
 	if len(api.deleteCalled) != 0 {
 		t.Fatalf("a transient lookup failure fell back to the snapshot; deletes = %d", len(api.deleteCalled))
+	}
+}
+
+// ---- SweepMessage: the restart- and replica-proof half of the lifecycle ----
+
+// The sweep is what clears the badge when the state map has nothing on file:
+// it must list the message's Typing reactions from Lark, delete the ones the
+// bot itself added, and leave everyone else's alone — a human who reacted with
+// the same emoji owns that reaction, and a bot cannot delete it anyway.
+func TestTypingIndicatorSweepDeletesOnlyTheBotTypingReactions(t *testing.T) {
+	api := &fakeTypingAPIClient{
+		listReturn: []MessageReaction{
+			{ReactionID: "r-bot", OperatorType: "app", EmojiType: typingEmoji},
+			{ReactionID: "r-human", OperatorType: "user", EmojiType: typingEmoji},
+			{ReactionID: "r-bot-lower", OperatorType: "app", EmojiType: "typing"},
+			{ReactionID: "r-bot-smile", OperatorType: "app", EmojiType: "SMILE"},
+		},
+	}
+	mgr := NewTypingIndicatorManager(api, fakeTypingCreds{secret: "shh"}, &fakeTypingQueries{}, newDiscardLogger())
+
+	mgr.SweepMessage(context.Background(), InstallationCredentials{AppID: "cli_test"}, "om_trigger")
+
+	if len(api.listCalled) != 1 || api.listCalled[0] != "om_trigger" {
+		t.Fatalf("expected one list call for om_trigger, got %v", api.listCalled)
+	}
+	if len(api.deleteCalled) != 2 {
+		t.Fatalf("expected the two bot-authored Typing reactions to be deleted, deletes = %+v", api.deleteCalled)
+	}
+	deleted := map[string]bool{}
+	for _, d := range api.deleteCalled {
+		deleted[d.reactionID] = true
+		if d.messageID != "om_trigger" {
+			t.Errorf("deleted reaction %s from the wrong message %q", d.reactionID, d.messageID)
+		}
+	}
+	if !deleted["r-bot"] || !deleted["r-bot-lower"] {
+		t.Errorf("bot-authored Typing reactions survived the sweep: %+v", deleted)
+	}
+	if deleted["r-human"] || deleted["r-bot-smile"] {
+		t.Errorf("the sweep deleted reactions it did not own: %+v", deleted)
+	}
+}
+
+// A restart or a second replica empties the state map without touching Lark;
+// the sweep must clear the badge anyway, because it answers only to Lark.
+func TestTypingIndicatorSweepClearsWithoutAnyRecordedState(t *testing.T) {
+	api := &fakeTypingAPIClient{
+		listReturn: []MessageReaction{
+			{ReactionID: "r-from-another-process", OperatorType: "app", EmojiType: typingEmoji},
+		},
+	}
+	mgr := NewTypingIndicatorManager(api, fakeTypingCreds{secret: "shh"}, &fakeTypingQueries{}, newDiscardLogger())
+
+	// No Add ever ran in this process: the map is empty by construction.
+	mgr.SweepMessage(context.Background(), InstallationCredentials{AppID: "cli_test"}, "om_left_behind")
+
+	if len(api.deleteCalled) != 1 || api.deleteCalled[0].reactionID != "r-from-another-process" {
+		t.Fatalf("the badge added by another process was not swept: deletes = %+v", api.deleteCalled)
+	}
+}
+
+// A client that cannot list reactions (the stub, minimal fakes) must skip the
+// sweep quietly instead of panicking or firing blind deletes.
+func TestTypingIndicatorSweepSkipsWhenClientCannotList(t *testing.T) {
+	inner := &fakeTypingAPIClient{}
+	api := &noListerClient{APIClient: inner}
+	mgr := NewTypingIndicatorManager(api, fakeTypingCreds{secret: "shh"}, &fakeTypingQueries{}, newDiscardLogger())
+
+	mgr.SweepMessage(context.Background(), InstallationCredentials{AppID: "cli_test"}, "om_trigger")
+
+	if len(inner.listCalled) != 0 || len(inner.deleteCalled) != 0 {
+		t.Fatalf("a client without ReactionLister must not be consulted; lists = %d deletes = %d",
+			len(inner.listCalled), len(inner.deleteCalled))
+	}
+}
+
+// A failed list must not turn into deletes of a stale picture of the message.
+func TestTypingIndicatorSweepDoesNotDeleteWhenTheListFails(t *testing.T) {
+	api := &fakeTypingAPIClient{listErr: errors.New("lark 5xx")}
+	mgr := NewTypingIndicatorManager(api, fakeTypingCreds{secret: "shh"}, &fakeTypingQueries{}, newDiscardLogger())
+
+	mgr.SweepMessage(context.Background(), InstallationCredentials{AppID: "cli_test"}, "om_trigger")
+
+	if len(api.deleteCalled) != 0 {
+		t.Fatalf("deleted reactions without a successful list; deletes = %+v", api.deleteCalled)
 	}
 }
