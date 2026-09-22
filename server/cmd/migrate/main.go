@@ -141,6 +141,9 @@ var pgBigmOperatorClass = extensionOperatorClass{
 // interrupted build would otherwise leave a permanently unusable index.
 var concurrentIndexCleanups = map[string]string{
 	"535_github_pr_address_index":                               "idx_github_pull_request_pr_owner_repo",
+	"537_channel_typing_reaction_id_idx":                        "channel_typing_reaction_id_idx",
+	"538_channel_typing_reaction_retry_idx":                     "channel_typing_reaction_retry_idx",
+	"539_channel_typing_reaction_gc_idx":                        "channel_typing_reaction_gc_idx",
 	"510_wakeup_id":                                             "issue_wakeup_id_idx",
 	"511_wakeup_issue":                                          "issue_wakeup_issue_idx",
 	"512_wakeup_due":                                            "issue_wakeup_due_idx",
