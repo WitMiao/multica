@@ -20,17 +20,23 @@ export function useScrollFade(
     const el = ref.current;
     if (!el) return;
 
-    // Scroll, resize and child mutations all funnel through one rAF-coalesced
-    // run. Each run reads layout once and calls setFade only when the value
-    // actually changes. With dozens of fade hosts on screen — the sidebar
-    // groups and the tab bar alone mount many — a mount or a realtime-event
-    // re-render used to fire hundreds of identical dispatchSetState calls per
-    // second, every one of them going through React's lane scheduler, and
-    // that stretched tab switches and route remounts out to seconds.
+    // Resizes and child mutations funnel through one rAF-coalesced run
+    // (scroll stays synchronous — see its listener below). Each run reads
+    // layout once and calls setFade only when the value actually changes:
+    // with dozens of fade hosts on screen, a mount or a realtime-event
+    // re-render used to fire hundreds of identical dispatchSetState calls
+    // per second — every one of them went through React's lane
+    // scheduler and stretched tab switches to seconds.
     let last: "none" | "start" | "end" | "both" | null = null;
     let raf = 0;
     const run = () => {
-      raf = 0;
+      // A synchronous scroll absorbs any queued frame: this measurement
+      // covers it, and leaving the handle alive would both double-fire the
+      // callback and survive unmount cleanup (which sees raf === 0).
+      if (raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
       const node = ref.current;
       if (!node) return;
       const position = axis === "horizontal" ? node.scrollLeft : node.scrollTop;
@@ -70,7 +76,7 @@ export function useScrollFade(
 
     return () => {
       if (raf) cancelAnimationFrame(raf);
-      el.removeEventListener("scroll", schedule);
+      el.removeEventListener("scroll", run);
       ro.disconnect();
       mo.disconnect();
     };
