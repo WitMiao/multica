@@ -51,7 +51,14 @@ export function useScrollFade(
     };
 
     schedule();
-    el.addEventListener("scroll", schedule, { passive: true });
+    // Scroll stays synchronous on purpose. Consumer wiring treats a scroll
+    // and its fade verdict as one task — chat's stick-to-bottom latch, for
+    // one, attributes wheel displacement to the scroll that confirms it, and
+    // deferring the fade update off that task reordered the handshake in a
+    // way its tests (and real scrolling feedback) depend on not happening.
+    // User scrolling is also far too rare to need coalescing; the storms come
+    // from resizes and DOM mutations below.
+    el.addEventListener("scroll", run, { passive: true });
     const ro = new ResizeObserver(schedule);
     ro.observe(el);
     // ResizeObserver only fires on the container's own box. When children
