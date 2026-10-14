@@ -9,6 +9,13 @@
  * charts floating in blank space. An uncaught script error replaces the
  * preview with an explanation; fullscreen still shows whatever did render.
  *
+ * The measured document height is handed to the frame as `bodyHeight`, so the
+ * collapse decision lands in the same render the height arrives: a tall
+ * document lays out at the collapse clamp immediately instead of painting
+ * unclamped for a frame and then folding back — that total-height shock wave
+ * is what virtualized timelines render as flicker when a scroll jump lands on
+ * the block.
+ *
  * Reached through RichFenceBlock (rich-content/rich-code-block.tsx) for closed
  * fences only. NOT used in the editable Tiptap NodeView — that path must keep
  * `<NodeViewContent as="code" />` so the user can continue typing.
@@ -100,10 +107,15 @@ interface HtmlBlockPreviewProps {
 export function HtmlBlockPreview({ html, title }: HtmlBlockPreviewProps) {
   const { t } = useT("editor");
   const hostRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const themeVersion = useThemeVersion();
   const [srcDoc, setSrcDoc] = useState<string | null>(null);
   const [error, setError] = useState<DynamicBlockError | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [measured, reportHeight] = useReducer(nextHtmlBlockHeight, INITIAL_HTML_BLOCK_HEIGHT);
+  const [cachedHeight, setCachedHeight] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const frameTitle = t(($) => $.code_block.html_preview);
 
   // Built after mount: the theme tokens come from the host's computed style.
@@ -115,71 +127,6 @@ export function HtmlBlockPreview({ html, title }: HtmlBlockPreviewProps) {
     setError(null);
     setSrcDoc(buildHtmlBlockDocument(html, readHtmlBlockTheme(getComputedStyle(host))));
   }, [html, themeVersion]);
-
-  return (
-    <div ref={hostRef} className="contents">
-      <DynamicBlock
-        kind="html"
-        title={title}
-        source={html}
-        error={error}
-        onFullscreen={() => setFullscreen(true)}
-        preview={({ active }) => (
-          <HtmlBlockBody
-            key={html}
-            html={html}
-            srcDoc={srcDoc}
-            title={frameTitle}
-            active={active}
-            onError={setError}
-          />
-        )}
-      />
-      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
-        <DialogContent
-          className="!max-w-6xl !h-[min(90vh,calc(100vh-2rem))] w-full p-0 gap-0 overflow-hidden"
-          aria-label={t(($) => $.code_block.fullscreen)}
-        >
-          {srcDoc != null && (
-            <CodeBlockIframe
-              html={srcDoc}
-              title={frameTitle}
-              heightClassName="h-full"
-              className="rounded-none border-0"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function HtmlBlockBody({
-  html,
-  srcDoc,
-  title,
-  active,
-  onError,
-}: {
-  html: string;
-  srcDoc: string | null;
-  title: string;
-  active: boolean;
-  onError: (error: DynamicBlockError) => void;
-}) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [measured, reportHeight] = useReducer(nextHtmlBlockHeight, INITIAL_HTML_BLOCK_HEIGHT);
-  const [cachedHeight, setCachedHeight] = useState<number | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [timedOut, setTimedOut] = useState(false);
-
-  // The listener is registered once; these refs give it the current values.
-  const activeRef = useRef(active);
-  const onErrorRef = useRef(onError);
-  useEffect(() => {
-    activeRef.current = active;
-    onErrorRef.current = onError;
-  });
 
   useEffect(() => {
     setCachedHeight(readCachedHeight(html));
@@ -193,12 +140,14 @@ function HtmlBlockBody({
       const message = readHtmlBlockMessage(event.data);
       if (!message) return;
       if (message.type === "error") {
-        onErrorRef.current({ message: message.message, line: message.line || undefined });
+        setError({ message: message.message, line: message.line || undefined });
         return;
       }
-      // A hidden frame lays out at zero width; what it reports is not its
-      // height. It reports again once it is shown and resized back.
-      if (activeRef.current) reportHeight(message.height);
+      // A hidden frame (source view, closed fullscreen) lays out at zero
+      // width; what it reports is not its height. It reports again once it
+      // is shown and resized back.
+      const active = iframeRef.current != null && !iframeRef.current.closest("[hidden]");
+      if (active) reportHeight(message.height);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -221,25 +170,70 @@ function HtmlBlockBody({
   );
 
   return (
-    <div className="relative" style={{ height: bodyHeight }}>
-      {srcDoc != null && (
-        <CodeBlockIframe
-          ref={iframeRef}
-          html={srcDoc}
-          title={title}
-          heightClassName="h-full"
-          // The frame is the block's body, so it draws no border of its own.
-          // Transparent lets a document without a background sit on the
-          // block's surface.
-          className={cn("block rounded-none border-0 bg-transparent", !ready && "invisible")}
-          onLoad={() => setLoaded(true)}
-        />
-      )}
-      {!ready && (
-        <div className="absolute inset-0">
-          <DynamicBlockSkeleton />
-        </div>
-      )}
+    <div ref={hostRef} className="contents">
+      <DynamicBlock
+        kind="html"
+        title={title}
+        source={html}
+        error={error}
+        onFullscreen={() => setFullscreen(true)}
+        // The measured document height drives the frame's collapse decision
+        // in the same render it arrives — see the clamp in the preview.
+        bodyHeight={bodyHeight}
+        preview={({ collapsed }) => {
+          // While collapsed the block lays out at the clamp, never at the
+          // full document height. The reported height used to land a frame
+          // before the frame's clip did, so a tall document painted
+          // unclamped and then folded back — a total-height shock wave that
+          // virtualized timelines render as flicker, worst on a scroll jump
+          // landing on this block. The iframe keeps rendering at the full
+          // height inside the clip, so expanding is instant and nothing is
+          // rebuilt.
+          const layoutHeight = collapsed
+            ? Math.min(bodyHeight, DYNAMIC_BLOCK_COLLAPSE_AT_PX)
+            : bodyHeight;
+          return (
+            <div className="relative overflow-hidden" style={{ height: layoutHeight }}>
+              {srcDoc != null && (
+                <CodeBlockIframe
+                  ref={iframeRef}
+                  html={srcDoc}
+                  title={frameTitle}
+                  style={{ height: bodyHeight }}
+                  // The frame is the block's body, so it draws no border of
+                  // its own. Transparent lets a document without a
+                  // background sit on the block's surface.
+                  className={cn(
+                    "block w-full rounded-none border-0 bg-transparent",
+                    !ready && "invisible",
+                  )}
+                  onLoad={() => setLoaded(true)}
+                />
+              )}
+              {!ready && (
+                <div className="absolute inset-0">
+                  <DynamicBlockSkeleton />
+                </div>
+              )}
+            </div>
+          );
+        }}
+      />
+      <Dialog open={fullscreen} onOpenChange={setFullscreen}>
+        <DialogContent
+          className="!max-w-6xl !h-[min(90vh,calc(100vh-2rem))] w-full p-0 gap-0 overflow-hidden"
+          aria-label={t(($) => $.code_block.fullscreen)}
+        >
+          {srcDoc != null && (
+            <CodeBlockIframe
+              html={srcDoc}
+              title={frameTitle}
+              heightClassName="h-full"
+              className="rounded-none border-0"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

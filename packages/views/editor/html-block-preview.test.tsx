@@ -131,6 +131,34 @@ describe("HtmlBlockPreview — height", () => {
     render(<HtmlBlockPreview html="<p>chart</p>" />);
     expect(body(inlineFrame()).style.height).toBe("300px");
   });
+
+  // Regression: the reported height used to land a frame before the frame's
+  // collapse clip did, so a tall document painted at full height and then
+  // folded back — a total-height shock wave virtualized timelines render as
+  // flicker when a scroll jump lands on the block. The clamp must apply in
+  // the same render the height arrives.
+  it("lays out a tall document at the collapse clamp, never at its full height", () => {
+    render(<HtmlBlockPreview html="<p>tall</p>" />);
+    const frame = inlineFrame();
+
+    post(frame, { type: "height", height: 3000 });
+    const bodyEl = body(frame);
+    expect(bodyEl.style.height).toBe("480px");
+    expect(screen.getByRole("button", { name: "Show all" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+    expect(bodyEl.style.height).toBe("3000px");
+    expect(screen.queryByRole("button", { name: "Show all" })).toBeNull();
+  });
+
+  it("starts a tall cached document at the clamp too, not at its full height", () => {
+    const first = render(<HtmlBlockPreview html="<p>tall</p>" />);
+    post(inlineFrame(), { type: "height", height: 3000 });
+    first.unmount();
+
+    render(<HtmlBlockPreview html="<p>tall</p>" />);
+    expect(body(inlineFrame()).style.height).toBe("480px");
+  });
 });
 
 describe("HtmlBlockPreview — errors", () => {
