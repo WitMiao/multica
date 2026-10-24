@@ -821,16 +821,17 @@ article figure.shiki button:hover {
 }
 
 /* Fumadocs Tabs: a hairline closes the tab bar and the active underline sits
- * on it, so the indicator never meets the panel's rounded corner. The panel's
- * own radius is dropped; the outer frame already clips the corners. A lone
- * code block keeps its inset and border instead of bleeding to the edges, so
- * every tab group reads the same. */
+ * on it, so the indicator never meets the panel's rounded corner. The hairline
+ * is an inset shadow, not a border the tabs overlap with a negative margin:
+ * the tab bar scrolls horizontally, so anything poking out of it would add a
+ * scrollbar. The panel's own radius is dropped; the outer frame already clips
+ * the corners. A lone code block keeps its inset and border instead of
+ * bleeding to the edges, so every tab group reads the same. */
 [dir][data-orientation="horizontal"]:has(> [role="tablist"]) {
   > [role="tablist"] {
-    border-bottom: 1px solid var(--border);
+    box-shadow: inset 0 -1px 0 var(--border);
   }
   > [role="tablist"] > [role="tab"] {
-    margin-bottom: -1px;
     border-bottom-width: 2px;
   }
   > [role="tabpanel"] {
