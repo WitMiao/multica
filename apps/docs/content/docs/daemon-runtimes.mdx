@@ -4,51 +4,17 @@ description: How Multica connects computers, discovers AI coding tools, and exec
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { RuntimeOfflineDemo } from "@/components/demos/runtime-offline-demo";
 
 Multica records and coordinates the work; connected computers execute it. The **daemon** on a computer claims runs and invokes the AI coding tools installed on that machine.
-
-## Qoder Cloud Agents remote runtime
-
-Qoder Cloud Agents runs assigned issues through remote QCA sessions. The Multica server supervises a bridge that uses the existing daemon task protocol; no user-operated local daemon is needed for this runtime.
-
-### Before you start
-
-- You need to be a workspace administrator. Each workspace has one Qoder connection.
-- In Qoder, create a personal access token (PAT), at least one environment, and the QCA Agents you want to use. Models, tools, and skills are configured on the QCA Agent in Qoder, not in Multica.
-- Self-hosted installations must set `MULTICA_VCS_SECRET_KEY` on the server: a base64-encoded 32-byte key that stays the same across restarts. Without it, Qoder Cloud Agents does not appear in the **Add** menu.
-
-### Connect Qoder
-
-1. On the **Runtimes** page, click **Add** and choose **Qoder Cloud Agents** under **Cloud services**.
-2. Under **Region**, pick the site that issued your PAT: **Global (qoder.com)** or **China (qoder.com.cn)**. A PAT only works in its own region; if it is rejected, use the button that retries on the other site.
-3. Paste the PAT into **Personal access token**. Once it is verified, the **Environment** list loads from Qoder. A single environment is selected automatically; otherwise choose one.
-4. Optional: open **GitHub authorization** and add a repository URL and token for each repository agents may clone. Agents can only clone repositories authorized here.
-5. Optional: open **Execution** to set concurrent runs (default 3, up to 10) and the run timeout (default 60 minutes, from 5 to 240).
-6. Click **Connect**. Qoder Cloud Agents appears in the cloud section of the Runtimes page and comes online within a few seconds.
-
-### Add an agent
-
-Open Qoder Cloud Agents from the Runtimes page and click **Create an agent with it**, or create an agent as usual and choose the Qoder runtime. In the agent form, select the remote agent under **QCA Agent**. For an existing agent, change the QCA Agent or its default repository in the agent's **Routing** tab. Several Multica agents can share one connection, each linked to a different QCA Agent.
-
-Connection credentials are encrypted and shared within the workspace. Administrators manage the connection; members can select accessible QCA agents. Projects choose the repository and starting branch; the repository's token is passed to QCA when a coding session is created. PAT values are never returned to the browser after saving.
-
-On the Qoder Cloud Agents page, administrators can edit the connection and repositories, **Pause** to stop sending new tasks while keeping credentials and agents, or **Disconnect** to delete the saved tokens, remove the runtime, and unbind its agents.
-
-### How runs work
-
-Runs beyond the concurrency limit wait in the queue. A follow-up on the same issue continues the agent's previous Qoder session when it is idle. An agent can set a default repository, used when the issue's project has none. The agent is asked to push a branch named after the issue identifier and to prefix the pull request title with it, so the pull request is linked to the issue.
-
-This first version supports issue runs, progress reporting, cancellation, and recovery from a persisted run journal. Configure models, tools, and skills in Qoder. Interactive chat, local directories, attachments, and creating remote QCA agents from Multica are not supported. The Runtimes page separates remote runtimes from connected computers.
-
-For standalone bridge setup and operational limitations, see the [Qoder runtime README](https://github.com/multica-ai/multica/blob/main/server/cmd/qoder-runtime/README.md).
-
 
 ## Daemon vs runtime
 
 - The **daemon** is the Multica background process running on one computer. It connects to the server, discovers local tools, claims runs, and reports results back.
 - A **runtime** represents one concrete execution environment available to a workspace. It corresponds to one computer plus one AI coding tool — or one custom runtime profile — on that computer.
 
-For example, a computer has both Claude Code and Codex installed and is connected to two workspaces. The daemon registers Claude Code and Codex runtimes for each workspace. Restarting the daemon updates the existing records; it does not keep creating new runtimes for the same combination.
+For example, if a computer has both Claude Code and Codex installed and is connected to two workspaces, the daemon registers one Claude Code runtime and one Codex runtime for each workspace. Restarting the daemon updates the existing records; it does not keep creating new runtimes for the same combination.
 
 ## Execution location and data boundaries
 
@@ -57,18 +23,27 @@ The AI coding tools a local runtime invokes, those tools' own login credentials,
 So the team can collaborate, the server stores issues, comments, agent configuration, run context, run records, and the results agents write back. That content can include code snippets or other project context an agent chose to read and include in its replies.
 
 <Callout type="warning">
-An agent's custom environment variables are stored server-side and sent to the runtime at execution time. Do not read "local execution" as "every secret exists only on this machine": custom environment variables and MCP configuration live on the server, and their display is limited by the sensitive-value rules.
+"Local execution" does not mean every secret exists only on this machine. An agent's custom environment variables and MCP configuration are stored on the server, and their display is limited by the sensitive-value rules; custom environment variables are sent to the runtime at execution time.
 </Callout>
 
 ## Starting the daemon
 
-With Multica Desktop, the app starts the daemon automatically — no extra command needed.
+<Tabs items={["Desktop", "CLI"]}>
+<Tab value="Desktop">
+
+Multica Desktop starts the daemon automatically; no extra command is needed.
+
+</Tab>
+<Tab value="CLI">
 
 On the web, a remote computer, or a headless environment, [install the Multica CLI](/cli) first, then run:
 
 ```bash
 multica daemon start
 ```
+
+</Tab>
+</Tabs>
 
 The daemon runs in the background by default. Common commands:
 
@@ -82,24 +57,26 @@ The daemon runs in the background by default. Common commands:
 
 To place run workspaces on another disk, persist a root for the current profile with `multica config set workspaces_root <path>`, or pass `--workspaces-root <path>` to `daemon start` or `daemon restart`. The flag overrides `MULTICA_WORKSPACES_ROOT`, which overrides the profile config. Existing run directories are not moved when the root changes.
 
-On startup, the daemon detects supported AI coding tools on `PATH` and registers runtimes for the workspaces you are allowed to connect. If a tool was just installed or signed in, restart the daemon to detect it again.
+On startup, the daemon detects supported AI coding tools on `PATH` and registers runtimes for the workspaces you are allowed to connect. If a tool was just installed or signed in, restart the daemon to detect it.
 
 The daemon needs at least one built-in supported AI coding tool detected before it will start. Install methods and executable names are in [Install AI coding tools](/install-agent-runtime).
 
 ## Dispatch and online status
 
-Once registered, a runtime keeps a persistent connection. When a new run enters the queue, the server notifies the matching daemon; the daemon also polls periodically as a backstop after connection interruptions. So when a runtime is online with spare capacity, runs usually start immediately.
+Once registered, a runtime keeps a persistent connection. When a new run enters the queue, the server notifies the matching daemon; the daemon also polls periodically so a dropped connection does not lose the notification. When a runtime is online with spare capacity, runs usually start immediately.
 
-The daemon sends a heartbeat every 15 seconds. The server combines heartbeats and connection state to decide whether a runtime is online; after a daemon exits unexpectedly, the runtime usually shows as offline within about 3 minutes at the latest.
-
-![Runtime details for one online computer: the same daemon registered 7 runtimes, one row per detected AI coding tool, each showing online status and CLI version](/images/docs/runtime-machine-detail.webp)
+The daemon sends a heartbeat every 15 seconds. The server combines heartbeats and connection state to decide whether a runtime is online; after a daemon exits unexpectedly, the runtime is marked offline within about 3 minutes at the latest. For the first 5 minutes after losing contact, the **Runtimes** page shows it as "Recently lost", then as "Offline".
 
 When a runtime is offline:
 
-- Runs already queued wait for the runtime to recover. They fail only once it has stopped heartbeating for longer than the reconnect grace **and** the run has itself been queued that long, so a runtime that is merely busy keeps its backlog, and work assigned to an already-offline runtime still gets a full grace to wait.
-- Runs that were in progress fail; eligible issue or chat runs can retry automatically.
+- Runs already queued wait for the runtime to recover; they do not move to another computer. A queued run fails only once the runtime has stopped heartbeating for longer than the reconnect grace **and** the run has itself been queued that long. A runtime that is merely busy keeps its backlog, and work assigned to an already-offline runtime still gets a full grace period to wait.
+- Runs already in progress do not fail right away. They fail with `runtime_offline` only after the runtime's heartbeat has been missing longer than the reconnect grace (`MULTICA_RUNTIME_RECONNECT_GRACE`, 3 hours by default); eligible issue or chat runs can retry automatically.
 - When the daemon starts again, it re-registers its runtimes and reclaims runs that did not end cleanly last time.
 - A runtime offline for more than 7 days with no agents bound to it (including archived ones) is cleaned up automatically.
+
+In the demo below, a run assigned while the computer is offline waits in the queue and is claimed only after the computer comes back online.
+
+<RuntimeOfflineDemo />
 
 Detailed states and retry rules are in [Runs](/tasks).
 
@@ -107,13 +84,13 @@ Detailed states and retry rules are in [Runs](/tasks).
 
 One daemon executes at most 20 runs at a time by default; each agent at most 6. Effective concurrency is the smaller of the two.
 
-Once a limit is reached, new runs keep queueing. You can adjust a single agent's concurrency in the agent settings, and the machine-wide cap through `MULTICA_DAEMON_MAX_CONCURRENT_TASKS`. Parallel runs compete for machine capacity, tool account quota, and the same working directory all at once.
+Once a limit is reached, new runs keep queueing. Adjust a single agent's concurrency in the agent settings, and the machine-wide cap with `MULTICA_DAEMON_MAX_CONCURRENT_TASKS`. Parallel runs compete for machine capacity, tool account quota, and the same working directory all at once.
 
 ## Private and public runtimes
 
-A local runtime is **private** by default: only the runtime owner can create agents on it. Workspace owners and admins are no exception — the runtime is someone else's computer, and running an agent there spends their machine and their tool credentials.
+A local runtime is **private** by default: only the runtime owner can create agents on it, and workspace owners and admins are no exception. The runtime is someone else's computer, and running an agent there uses their machine and their tool credentials.
 
-Only the runtime owner can make it **public** — workspace admins can rename or delete a runtime, but sharing one is the owner's decision. Other workspace members can then select this runtime as well; that does not share the underlying AI coding tool's login credentials — it only lets members route their agents' runs to this computer.
+Only the owner can make it **public**. Workspace admins can rename or delete a runtime, but sharing one is the owner's decision. Once it is public, other workspace members can select this runtime and route their agents' runs to this computer; the underlying AI coding tool's login credentials are not shared.
 
 When the owner makes a public runtime **private** again, Multica shows the affected agents and active runs, including Agent Builder sessions, before applying the change. Confirmation unbinds those teammates' agents, cancels their queued, dispatched, running, local-directory-waiting and deferred runs with `runtime_access_revoked`, and pauses active autopilots assigned to the unbound agents. The owner's own agents and runs are unaffected. A changed plan requires renewed confirmation; concurrent chat writes may require a retry. To resume work, bind the agent to an accessible runtime, then explicitly resume its paused autopilots.
 
@@ -172,11 +149,11 @@ Everything you type in the command field stays directly after the executable, ah
 <your command> <your fixed arguments> <Multica's protocol arguments> <the agent's custom arguments>
 ```
 
-This is what makes a subcommand-style wrapper work. If your command is `ccms start q36`, the tool sees `start q36` first and can select its subcommand before Multica's `-p` and the rest arrive — which is the only order such a wrapper accepts.
+Subcommand-style wrappers rely on this order. If your command is `ccms start q36`, the tool sees `start q36` first and selects its subcommand before Multica's `-p` and the rest arrive; such a wrapper accepts no other order.
 
-Your arguments used to be appended last instead. Most flag-style commands parse the same either way, but not all of them do — a command that distinguishes global flags from subcommand flags can care where a flag sits. If you already have a profile with fixed arguments, start one run on it after upgrading to confirm it still works.
+Your arguments used to be appended last. Most flag-style commands parse the same either way, but a command that distinguishes global flags from subcommand flags cares where a flag sits. If you already have a profile with fixed arguments, start one run on it after upgrading to confirm it still works.
 
-Two more consequences worth knowing:
+Also:
 
 - **Multica's own values win a conflict.** If your fixed arguments set a flag Multica also sets, Multica's value comes later and takes effect. Most importantly, a model chosen on the agent overrides a `--model` pinned in the profile. To pin a model for everyone, leave the agents' model field empty.
 - **Protocol-critical flags are ignored.** `-p`, `--output-format`, `--input-format`, `--permission-mode`, and the equivalents for other families are dropped from your fixed arguments, because overriding them would break the daemon's connection to the tool. Subcommands and other positional arguments always pass through.
@@ -194,6 +171,41 @@ multica runtime profile unset-path <profile-id>
 ```
 
 Editing a profile only affects runs claimed afterwards. Before deleting a profile, deal with the active agents still bound to its runtimes. Deleting only the runtime instance on one computer does not delete the profile — a running daemon will re-register it.
+
+## Qoder Cloud Agents remote runtime
+
+Qoder Cloud Agents runs assigned issues through remote QCA sessions. The Multica server supervises a bridge that uses the existing daemon task protocol; no user-operated local daemon is needed for this runtime.
+
+### Before you start
+
+- You need to be a workspace administrator. Each workspace has one Qoder connection.
+- In Qoder, create a personal access token (PAT), at least one environment, and the QCA Agents you want to use. Models, tools, and skills are configured on the QCA Agent in Qoder, not in Multica.
+- Self-hosted installations must set `MULTICA_VCS_SECRET_KEY` on the server: a base64-encoded 32-byte key that stays the same across restarts. Without it, Qoder Cloud Agents does not appear in the **Add** menu.
+
+### Connect Qoder
+
+1. On the **Runtimes** page, click **Add** and choose **Qoder Cloud Agents** under **Cloud services**.
+2. Under **Region**, pick the site that issued your PAT: **Global (qoder.com)** or **China (qoder.com.cn)**. A PAT only works in its own region; if it is rejected, use the button that retries on the other site.
+3. Paste the PAT into **Personal access token**. Once it is verified, the **Environment** list loads from Qoder. A single environment is selected automatically; otherwise choose one.
+4. Optional: open **GitHub authorization** and add a repository URL and token for each repository agents may clone. Agents can only clone repositories authorized here.
+5. Optional: open **Execution** to set concurrent runs (default 3, up to 10) and the run timeout (default 60 minutes, from 5 to 240).
+6. Click **Connect**. Qoder Cloud Agents appears in the cloud section of the Runtimes page and comes online within a few seconds.
+
+### Add an agent
+
+Open Qoder Cloud Agents from the Runtimes page and click **Create an agent with it**, or create an agent as usual and choose the Qoder runtime. In the agent form, select the remote agent under **QCA Agent**. For an existing agent, change the QCA Agent or its default repository in the agent's **Routing** tab. Several Multica agents can share one connection, each linked to a different QCA Agent.
+
+Connection credentials are encrypted and shared within the workspace. Administrators manage the connection; members can select accessible QCA agents. Projects choose the repository and starting branch; the repository's token is passed to QCA when a coding session is created. PAT values are never returned to the browser after saving.
+
+On the Qoder Cloud Agents page, administrators can edit the connection and repositories, **Pause** to stop sending new tasks while keeping credentials and agents, or **Disconnect** to delete the saved tokens, remove the runtime, and unbind its agents.
+
+### How runs work
+
+Runs beyond the concurrency limit wait in the queue. A follow-up on the same issue continues the agent's previous Qoder session when it is idle. An agent can set a default repository, used when the issue's project has none. The agent is asked to push a branch named after the issue identifier and to prefix the pull request title with it, so the pull request is linked to the issue.
+
+This first version supports issue runs, progress reporting, cancellation, and recovery from a persisted run journal. Configure models, tools, and skills in Qoder. Interactive chat, local directories, attachments, and creating remote QCA agents from Multica are not supported. The Runtimes page separates remote runtimes from connected computers.
+
+For standalone bridge setup and operational limitations, see the [Qoder runtime README](https://github.com/multica-ai/multica/blob/main/server/cmd/qoder-runtime/README.md).
 
 ## Troubleshooting an offline runtime
 
