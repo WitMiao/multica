@@ -4,8 +4,11 @@ description: Ajoutez des informations, répondez aux discussions et @mentionnez 
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { ResolveThreadDemo } from "@/components/demos/resolve-thread-demo";
 
-Les commentaires sont le lieu de la collaboration continue sur une [tâche](/issues). Membres et agents y ajoutent du contexte, posent des questions et publient des résultats, et tout le contexte est encore là la prochaine fois que la tâche est ouverte.
+Membres et agents ajoutent du contexte, posent des questions et publient leurs résultats dans les commentaires d'une [tâche](/issues). Ces échanges restent sur la tâche : quiconque l'ouvre plus tard voit comment on en est arrivé là.
 
 ## Publier des commentaires et des réponses
 
@@ -17,15 +20,55 @@ Répondre à un commentaire crée un fil de discussion. Les réponses peuvent s'
 
 ## Annoter des commentaires et des descriptions
 
-Sur le web et dans l'application de bureau, sélectionnez du texte dans n'importe quel commentaire publié, y compris les vôtres, puis choisissez **Ajouter à la réponse** dans la barre d'outils de sélection. Rédigez une note à côté de la sélection, puis cliquez sur **Ajouter une annotation** pour l'ajouter au brouillon de réponse. Seules les notes confirmées et non vides reçoivent un compteur et un marqueur de source. Lors d'une modification, cliquez sur **Enregistrer l'annotation** pour appliquer les changements. Entrée confirme ; Maj + Entrée insère un saut de ligne. Échap ou un clic à l'extérieur annule les modifications non confirmées. Cliquez sur le marqueur de source numéroté pour la modifier à nouveau. Le bouton corbeille à côté de la note supprime directement cette annotation à la source, y compris son surlignage et son entrée dans le brouillon. Survolez le compteur d'annotations pour consulter ou retirer les citations dans un panneau flottant, ou cliquez sur une citation pour modifier sa note à la source. Vous pouvez aussi ouvrir le panneau d'un clic ou au clavier. Envoyez le tout en une seule réponse avec le bouton d'envoi habituel, une ligne vide séparant les annotations. Les annotations apparaissent en premier, suivies de votre réponse globale, avec un séparateur entre les deux sections lorsque les deux sont présentes. Pour la description d'une tâche, choisissez **Ajouter au commentaire** dans sa barre d'outils de sélection. Les annotations de description rejoignent le brouillon de nouveau commentaire et sont envoyées comme un nouveau fil ; les annotations de commentaire restent dans leur fil d'origine.
+Sur le web et dans l'application de bureau, vous pouvez sélectionner du texte dans n'importe quel commentaire publié, y compris les vôtres, et écrire une note sur ce passage :
 
-Pour les annotations de commentaire, la première annotation enregistrée fixe la cible de la réponse, y compris pour les réponses imbriquées. Les citations issues d'autres messages de cette discussion rejoignent le même brouillon. Utilisez le bouton d'envoi habituel pour tout publier en un seul commentaire. Les mentions citées ne notifient ni ne déclenchent personne ; les mentions que vous rédigez vous-même suivent les règles habituelles.
+<Steps>
+<Step>
 
-Les brouillons sont propres à cet appareil et à cet espace de travail, survivent aux rechargements et expirent au bout de 30 jours. Chaque réponse accepte jusqu'à 20 annotations, avec jusqu'à 4 000 caractères par citation. Si une source change, sa citation enregistrée est conservée ; si la cible de la réponse est supprimée, l'envoi est bloqué. La Discussion, l'ajout d'annotations sur mobile et la synchronisation des brouillons entre appareils ne sont pas pris en charge.
+Sélectionnez le texte et choisissez **Ajouter à la réponse** dans la barre d'outils de sélection.
+
+</Step>
+<Step>
+
+Rédigez votre note à côté de la sélection et cliquez sur **Ajouter une annotation**. Seule une note confirmée rejoint le brouillon de réponse du fil et reçoit un numéro ; une note vide ne peut pas être confirmée.
+
+</Step>
+<Step>
+
+Avec le bouton d'envoi habituel, publiez toutes les annotations en une seule réponse, séparées par une ligne vide. La réponse publiée affiche d'abord les annotations, puis ce que vous avez écrit dans la zone de saisie, avec un séparateur entre les deux lorsque les deux sont présents.
+
+</Step>
+</Steps>
+
+Sur la description d'une tâche, la barre d'outils de sélection propose **Ajouter au commentaire** : les annotations vont dans un brouillon de nouveau commentaire, et l'envoyer crée un nouveau fil. Les annotations sur un commentaire continuent d'aller dans le brouillon de réponse de leur fil.
+
+Pour les annotations de commentaire, la première que vous enregistrez fixe la cible de la réponse, y compris pour les réponses imbriquées. Les citations d'autres messages du même fil rejoignent ce brouillon, et le tout est publié en un seul commentaire. Les mentions citées ne notifient ni ne déclenchent personne ; les mentions que vous rédigez vous-même suivent les règles habituelles.
+
+<Accordions>
+<Accordion title="Modifier, supprimer et raccourcis" id="annotation-editing">
+
+- Après avoir modifié une annotation existante, cliquez sur **Enregistrer l'annotation** pour appliquer le changement.
+- Entrée confirme ; Maj + Entrée insère un saut de ligne. Échap ou un clic à l'extérieur annule les modifications non confirmées.
+- Cliquez sur le marqueur numéroté dans le texte source pour modifier à nouveau la note. Le bouton corbeille à côté de la note supprime l'annotation, son marqueur et son entrée dans le brouillon.
+- Survoler le compteur d'annotations ouvre un panneau où vous pouvez consulter ou retirer les citations, ou cliquer sur une citation pour revenir à la source et modifier sa note. Ce panneau s'ouvre aussi d'un clic ou au clavier.
+
+</Accordion>
+<Accordion title="Brouillons et limites" id="annotation-limits">
+
+Les brouillons restent sur cet appareil et dans cet espace de travail. Ils survivent aux rechargements et expirent au bout de 30 jours. Chaque réponse accepte jusqu'à 20 annotations, et chaque citation jusqu'à 4 000 caractères. Si le texte source change ensuite, la citation enregistrée ne bouge pas ; si la cible de la réponse est supprimée, le brouillon ne peut pas être envoyé.
+
+Les annotations dans Discussion, la saisie d'annotations sur mobile et la synchronisation des brouillons entre appareils ne sont pas encore prises en charge.
+
+</Accordion>
+</Accordions>
 
 ## Résoudre un fil de discussion
 
-Lorsqu'une question aboutit à une conclusion, marquez l'ensemble du fil comme résolu, ou désignez une réponse comme conclusion ; un fil ne conserve qu'une seule conclusion à la fois. Les fils résolus sont repliés mais peuvent toujours être dépliés.
+Lorsqu'une question a sa réponse, marquez l'ensemble du fil comme résolu, ou faites d'une réponse sa résolution. Les deux se trouvent dans le menu **Actions du commentaire**, en haut à droite d'un commentaire : celui du premier commentaire propose **Résoudre le fil**, celui d'une réponse propose **Résoudre le fil avec un commentaire**.
+
+<ResolveThreadDemo />
+
+Un fil résolu se replie sur une ligne, et un clic suffit pour tout revoir. Quand une réponse sert de résolution, le premier commentaire et cette réponse, marquée « Résolution », restent visibles, et les réponses intermédiaires sont repliées. Un fil garde une seule résolution à la fois : en définir une nouvelle remplace l'ancienne.
 
 Répondre dans un fil résolu le rouvre automatiquement.
 
@@ -57,7 +100,7 @@ Les membres qui commentent sont automatiquement abonnés à la tâche, et l'acti
 
 ## Réactions
 
-Ajoutez une réaction emoji à un commentaire pour en accuser réception, marquer votre accord ou donner un retour rapide. Les réactions ne déclenchent pas d'agents et ne changent pas le statut de la tâche.
+Ajoutez une réaction emoji à un commentaire pour montrer que vous l'avez lu, marquer votre accord ou donner un retour rapide. Les réactions ne déclenchent pas d'agents et ne changent pas le statut de la tâche.
 
 ## Modifier et supprimer
 

@@ -1,30 +1,52 @@
 ---
 title: "Discuter avec des agents"
-description: "Conversation privée en tête-à-tête avec un agent, en dehors de toute tâche. L'agent démarre sans aucun contexte de tâche et ne crée jamais de tâches de lui-même — mais il agit avec vos accès à l'espace de travail lorsque vous le lui demandez explicitement."
+description: "Conversation en tête-à-tête avec un agent, visible de vous seul. L'agent démarre sans contexte de tâche et ne crée pas de tâches de lui-même ; quand vous le lui demandez explicitement, il agit avec vos accès à l'espace de travail."
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { ChatDemo } from "@/components/demos/chat-demo";
 
-Discussion convient aux sujets qui n'ont pas encore pris la forme d'une tâche claire : clarifier des idées, faire le point sur l'espace de travail, discuter d'une approche, ou confier d'abord un petit travail à un agent.
+Discussion convient aux sujets qui n'ont pas encore pris la forme d'une tâche claire : clarifier des idées, faire le point sur l'espace de travail, discuter d'une approche, poser une question qui ne relève d'aucune tâche, ou confier d'abord un petit travail à un agent.
 
-**Une discussion est une conversation en tête-à-tête entre vous et un [agent](/agents)**, en dehors du tableau des [tâches](/issues). L'agent démarre **sans aucun contexte de tâche** — il ne regarde pas votre tableau et ne transformera pas la conversation en tâches de lui-même — et l'ensemble de la conversation est **entièrement privé** (personne d'autre dans l'[espace de travail](/workspaces), pas même les administrateurs, ne peut la voir). Elle convient pour discuter d'une approche avec un agent, faire un brainstorming ou poser une question qui ne relève d'aucune tâche.
+Une discussion est une conversation en tête-à-tête entre vous et un [agent](/agents), en dehors du tableau des [tâches](/issues). Elle est **entièrement privée** : personne d'autre dans l'[espace de travail](/workspaces), pas même les administrateurs, ne peut la voir.
 
-Une discussion n'est **liée à aucune tâche** : l'agent ne reçoit pas automatiquement la description et les commentaires d'une tâche, mais il peut toujours utiliser le CLI Multica pour consulter les espaces de travail, projets, tâches et skills dans la limite de ses autorisations.
+Une discussion n'est **liée à aucune tâche**. L'agent ne regarde pas votre tableau, ne reçoit pas automatiquement la description et les commentaires d'une tâche, et ne transforme pas la conversation en tâches de lui-même. Il peut toujours utiliser le CLI Multica pour consulter les espaces de travail, projets, tâches et skills dans la limite de ses autorisations, et quand vous le lui demandez explicitement, il agit avec vos accès à l'espace de travail, par exemple pour créer une tâche.
 
 Une discussion peut aussi porter un contexte. Cliquez sur **+** en bas à gauche de la zone de saisie et choisissez **Contexte de projet** pour rattacher un [projet](/projects) à la conversation ; lorsque l'agent s'exécute, il reçoit la description, les dépôts et les autres ressources de ce projet.
 
-![Une discussion avec un agent : une question dont la réponse est organisée dans un tableau](/images/docs/chat-conversation.webp)
-
 ## Démarrer une conversation
 
-1. Ouvrez **Discussion** dans la barre latérale.
-2. Cliquez sur Nouvelle discussion et choisissez un agent que vous avez la permission d'exécuter.
-3. Saisissez un message ; vous pouvez aussi joindre des images ou des fichiers.
-4. Après l'envoi, Multica crée une exécution pour le message, et la réponse revient dans la conversation en cours.
+<Steps>
+<Step>
+
+Ouvrez **Discussion** dans la barre latérale.
+
+</Step>
+<Step>
+
+Cliquez sur Nouvelle discussion et choisissez un agent que vous avez la permission d'exécuter.
+
+</Step>
+<Step>
+
+Saisissez un message ; vous pouvez aussi joindre des images ou des fichiers.
+
+</Step>
+<Step>
+
+Après l'envoi, Multica crée une exécution pour le message, et la réponse revient dans la conversation en cours.
+
+</Step>
+</Steps>
 
 Si le runtime est hors ligne, le message attend son retour en ligne. Une fois l'agent archivé, ou si vous perdez la permission de l'exécuter, vous ne pouvez plus envoyer de nouveaux messages.
 
-Avant le premier message, Discussion affiche jusqu'à trois amorces de conversation configurées pour l'agent sélectionné. En choisir une copie son prompt complet dans la zone de saisie sans l'envoyer, pour que vous puissiez d'abord l'adapter. Les agents sans amorces configurées utilisent des exemples généraux localisés.
+Avant le premier message, Discussion affiche jusqu'à trois amorces de conversation configurées pour l'agent sélectionné. En choisir une remplit seulement la zone de saisie avec son prompt complet, sans rien envoyer : vous pouvez d'abord le modifier. Les agents sans amorces configurées affichent des exemples généraux.
+
+Après la réponse de l'agent, des **Questions de suivi** s'affichent parfois en dessous. Un clic sur l'une d'elles l'envoie aussitôt.
+
+<ChatDemo />
 
 ## Discussion ou tâches
 
@@ -35,7 +57,7 @@ Avant le premier message, Discussion affiche jusqu'à trois amorces de conversat
 | Permettre à vos coéquipiers de voir le contexte et de poursuivre la discussion | **Tâche** |
 | Un coup d'œil rapide aux informations de l'espace de travail, sans besoin de garder une trace du travail | **Discussion** |
 
-Les discussions directes créées dans Multica ne sont visibles que par leur créateur ; les autres membres et les administrateurs de l'espace de travail ne peuvent pas les lire. Les conclusions que toute l'équipe doit voir doivent être consignées dans une tâche, une description de projet ou un skill.
+Seul leur créateur peut lire les discussions directes créées dans Multica ; les autres membres et les administrateurs ne le peuvent pas. Consignez les conclusions que l'équipe doit voir dans une tâche, une description de projet ou un skill.
 
 ## Contexte sur plusieurs tours
 

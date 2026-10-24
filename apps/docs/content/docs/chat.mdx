@@ -1,30 +1,52 @@
 ---
 title: Chat with agents
-description: One-to-one, fully private conversation with an agent, outside any issue. The agent starts with no issue context and never auto-creates issues — but it acts with your workspace access when you explicitly ask it to.
+description: A one-to-one conversation with an agent that only you can see. The agent starts with no issue context and doesn't create issues on its own; when you explicitly ask, it acts with your workspace access.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { ChatDemo } from "@/components/demos/chat-demo";
 
-Chat fits work that hasn't formed a clear issue yet: sorting out ideas, checking on the workspace, discussing an approach, or having an agent finish a small task first.
+Chat fits work that hasn't become a clear issue yet: sorting out ideas, checking on the workspace, discussing an approach, asking a question that doesn't belong to any issue, or having an agent finish a small task first.
 
-**Chat is a one-to-one conversation between you and an [agent](/agents)** — stepping outside the [issue](/issues) board. The agent starts with **no issue context** — it isn't looking at your board and won't turn the conversation into issues on its own — and the entire conversation is **fully private** (nobody else in the [workspace](/workspaces), including admins, can see it). It fits discussing an approach with an agent, brainstorming, or asking a question that does not belong to any issue.
+Chat is a one-to-one conversation between you and an [agent](/agents), off the [issue](/issues) board. The whole conversation is **fully private**: nobody else in the [workspace](/workspaces), admins included, can see it.
 
-A chat is **not bound to any issue**: the agent doesn't automatically receive an issue's description and comments, but it can still use the Multica CLI to query workspaces, projects, issues, and skills within its permissions.
+A chat is **not bound to any issue**. The agent isn't watching your board, doesn't automatically receive an issue's description and comments, and won't turn the conversation into issues on its own. It can still use the Multica CLI to query workspaces, projects, issues, and skills within its permissions, and when you explicitly ask, it acts with your workspace access, for example to create an issue.
 
 A chat can also carry background. Click **+** at the bottom left of the input and choose **Project context** to attach a [project](/projects) to the conversation; when the agent runs, it receives that project's description, repositories, and other resources.
 
-![A chat with an agent: a question answered with the result organized into a table](/images/docs/chat-conversation.webp)
-
 ## Start a conversation
 
-1. Open **Chat** in the sidebar.
-2. Click new and pick an agent you have permission to run.
-3. Type a message; you can also attach images or files.
-4. After you send, Multica creates a run for the message, and the reply comes back to the current conversation.
+<Steps>
+<Step>
+
+Open **Chat** in the sidebar.
+
+</Step>
+<Step>
+
+Click new and pick an agent you have permission to run.
+
+</Step>
+<Step>
+
+Type a message; you can also attach images or files.
+
+</Step>
+<Step>
+
+After you send, Multica creates a run for the message, and the reply comes back to the current conversation.
+
+</Step>
+</Steps>
 
 If the runtime is offline, the message waits until it comes back online. Once the agent is archived, or you lose permission to run it, you can't send new messages.
 
-Before the first message, Chat shows up to three suggestions configured for the selected agent. Selecting one copies its full prompt into the composer without sending it, so you can adapt it first. Agents without configured suggestions use localized general-purpose examples.
+Before the first message, Chat shows up to three suggestions configured for the selected agent. Selecting one only fills the composer with its full prompt; nothing is sent, so you can edit it first. Agents without configured suggestions show general-purpose examples.
+
+After the agent replies, it sometimes offers **Follow-up questions** below the reply. Clicking one sends it right away.
+
+<ChatDemo />
 
 ## Chat vs. issues
 
@@ -35,7 +57,7 @@ Before the first message, Chat shows up to three suggestions configured for the 
 | Letting teammates see the background and continue the discussion | **Issue** |
 | A quick look at workspace information with no work record needed | **Chat** |
 
-Direct chats created in Multica are visible only to their creator; other workspace members and admins cannot read them. Conclusions the team needs to see together should be written into an issue, a project description, or a skill.
+Direct chats created in Multica can be read only by their creator, not by other members or admins. Put conclusions the team needs to see into an issue, a project description, or a skill.
 
 ## Multi-turn context
 
