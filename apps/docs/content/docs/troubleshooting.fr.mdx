@@ -9,17 +9,26 @@ import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 
 Commencez par déterminer à quelle couche appartient le problème : le service Multica, le daemon, le runtime ou l'outil de codage IA. Ces commandes suffisent généralement à faire apparaître la première erreur significative :
 
-```bash tab="Toute installation"
+<Tabs items={["Toute installation", "Service auto-hébergé"]}>
+<Tab value="Toute installation">
+
+```bash
 multica version
 multica auth status
 multica daemon status --output json
 multica daemon logs --lines 100
 ```
 
-```bash tab="Service auto-hébergé"
+</Tab>
+<Tab value="Service auto-hébergé">
+
+```bash
 curl -i https://api.example.com/health
 curl -i https://api.example.com/readyz
 ```
+
+</Tab>
+</Tabs>
 
 `/health` indique seulement que le processus API répond ; `/readyz` vérifie aussi la base de données et les migrations. Lorsque vous signalez un problème, incluez l'erreur, les journaux pertinents, la version du CLI et le système d'exploitation ; retirez les jetons, les adresses e-mail et les autres informations sensibles avant l'envoi.
 
@@ -271,13 +280,22 @@ Options utiles : `--dry-run` affiche un aperçu sans rien écrire ; `--sleep-bet
 
 Les ports locaux courants sont `8080` pour l'API, `3000` pour l'application web, et le port de vérification d'état du daemon. Identifiez d'abord le processus qui occupe le port :
 
-```bash tab="macOS / Linux"
+<Tabs groupId="os" persist items={["macOS / Linux", "Windows"]}>
+<Tab value="macOS / Linux">
+
+```bash
 lsof -nP -iTCP:8080 -sTCP:LISTEN
 ```
 
-```bash tab="Windows"
+</Tab>
+<Tab value="Windows">
+
+```bash
 netstat -ano | findstr :8080
 ```
+
+</Tab>
+</Tabs>
 
 S'il s'agit d'une autre copie de travail (checkout) de Multica, exécutez d'abord `make stop` dans ce répertoire. Sinon, arrêtez normalement le programme en cause, ou changez le port du service actuel. Les ports publics 80/443 sont écoutés par un proxy inverse tel que Caddy ou Nginx.
 

@@ -45,15 +45,24 @@ multica version
 
 按连接的服务选择：
 
-```bash tab="Multica Cloud"
+<Tabs items={["Multica Cloud", "自托管实例"]}>
+<Tab value="Multica Cloud">
+
+```bash
 multica setup
 ```
 
-```bash tab="自托管实例"
+</Tab>
+<Tab value="自托管实例">
+
+```bash
 multica setup self-host \
   --server-url https://api.example.com \
   --app-url https://app.example.com
 ```
+
+</Tab>
+</Tabs>
 
 `setup` 会保存服务地址、打开浏览器完成登录，并启动守护进程。完成后检查：
 

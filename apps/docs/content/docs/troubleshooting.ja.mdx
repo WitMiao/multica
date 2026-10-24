@@ -9,17 +9,26 @@ import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 
 まず、問題がどの層で起きているかを切り分けます。Multica サービス、デーモン、ランタイム、AI コーディングツールのどれかです。多くの場合、次のコマンドだけで最初の有効なエラーが見つかります。
 
-```bash tab="すべてのインストール方法"
+<Tabs items={["すべてのインストール方法", "セルフホストサービス"]}>
+<Tab value="すべてのインストール方法">
+
+```bash
 multica version
 multica auth status
 multica daemon status --output json
 multica daemon logs --lines 100
 ```
 
-```bash tab="セルフホストサービス"
+</Tab>
+<Tab value="セルフホストサービス">
+
+```bash
 curl -i https://api.example.com/health
 curl -i https://api.example.com/readyz
 ```
+
+</Tab>
+</Tabs>
 
 `/health` は API プロセスが応答していることだけを示します。`/readyz` はデータベースと migration も確認します。問題を報告するときは、エラー、関連ログ、CLI バージョン、OS を含め、トークンやメールアドレスなどの機微情報は提出前に取り除いてください。
 
@@ -271,13 +280,22 @@ DATABASE_URL='postgres://...' go run ./cmd/backfill_task_usage_hourly
 
 ローカルでよく使うポートは、API の `8080`、Web の `3000`、デーモンのヘルスチェックポートです。まず占有しているプロセスを特定します。
 
-```bash tab="macOS / Linux"
+<Tabs groupId="os" persist items={["macOS / Linux", "Windows"]}>
+<Tab value="macOS / Linux">
+
+```bash
 lsof -nP -iTCP:8080 -sTCP:LISTEN
 ```
 
-```bash tab="Windows"
+</Tab>
+<Tab value="Windows">
+
+```bash
 netstat -ano | findstr :8080
 ```
+
+</Tab>
+</Tabs>
 
 それが別の Multica チェックアウトであれば、まずそのディレクトリで `make stop` を実行してください。そうでなければ、占有しているプログラムを通常の方法で停止するか、現在のサービスのポートを変更します。公開ポートの 80/443 は、Caddy や Nginx などのリバースプロキシがリッスンします。
 

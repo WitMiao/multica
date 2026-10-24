@@ -45,15 +45,24 @@ multica version
 
 Pick the service you are connecting to:
 
-```bash tab="Multica Cloud"
+<Tabs items={["Multica Cloud", "Self-hosted instance"]}>
+<Tab value="Multica Cloud">
+
+```bash
 multica setup
 ```
 
-```bash tab="Self-hosted instance"
+</Tab>
+<Tab value="Self-hosted instance">
+
+```bash
 multica setup self-host \
   --server-url https://api.example.com \
   --app-url https://app.example.com
 ```
+
+</Tab>
+</Tabs>
 
 `setup` saves the server address, opens a browser to complete sign-in, and starts the daemon. When it finishes, check:
 

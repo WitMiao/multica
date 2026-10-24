@@ -133,7 +133,10 @@ MULTICA_PUBLIC_URL=https://api.example.com
 
 然后配置 DNS，并用 Caddy 代理本机端口。Caddy 会申请 TLS 证书并转发 WebSocket。
 
-```text tab="两个域名"
+<Tabs items={["两个域名", "单一 origin"]}>
+<Tab value="两个域名">
+
+```text
 app.example.com {
     # 浏览器的 WebSocket 直接交给 backend
     @ws path /ws /ws/*
@@ -156,7 +159,10 @@ api.example.com {
 }
 ```
 
-```text tab="单一 origin"
+</Tab>
+<Tab value="单一 origin">
+
+```text
 multica.example.com {
     # CLI 可达性探测：`multica setup` 会 GET <server-url>/health 并要求 200，
     # 旧版 frontend 不转发这个路径，直接路由到 backend
@@ -185,6 +191,9 @@ multica.example.com {
     }
 }
 ```
+
+</Tab>
+</Tabs>
 
 **单一 origin**（一个域名，或一台主机一个端口，小服务器上常见）把守护进程依赖的路径显式转给 backend，其余交给 frontend。这种模式下两个 URL 都指向它：`.env` 里的 `FRONTEND_ORIGIN` 和 `MULTICA_APP_URL`，以及 `multica setup self-host` 的 `--server-url` 和 `--app-url`。
 
@@ -271,15 +280,24 @@ irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps
 
 然后让 CLI 连接你的服务。按 Multica 服务所在的位置选择：
 
-```bash tab="服务在这台电脑上"
+<Tabs items={["服务在这台电脑上", "服务在另一台机器上"]}>
+<Tab value="服务在这台电脑上">
+
+```bash
 multica setup self-host
 ```
 
-```bash tab="服务在另一台机器上"
+</Tab>
+<Tab value="服务在另一台机器上">
+
+```bash
 multica setup self-host \
   --server-url https://api.example.com \
   --app-url https://app.example.com
 ```
+
+</Tab>
+</Tabs>
 
 服务在另一台机器上时，传入的是刚才配置的两个地址。这条命令会先检查 `<server-url>/health`，再打开浏览器完成登录。登录完成后，它会保存本机凭据并启动守护进程。这一步报 `Server not reachable`，说明 `/health` 没有通过探测拿到 200，可能的原因有三种：代理把所有流量转给了不转发该路径的旧版 frontend；代理根本没把 `/health` 路由到 backend；更底层的问题（DNS、TLS、防火墙、超时、backend 返回 5xx）。见[故障排查](/troubleshooting#multica-setup-reports-the-server-is-not-reachable)。
 
@@ -372,18 +390,27 @@ docker compose -f docker-compose.selfhost.yml exec -T postgres \
 
 在已有部署上，下面两种写法**结果相同**：`Makefile` 里的 `selfhost` target 跑的就是同一套 `docker compose pull` + `up -d`，只是额外多做了两件事，`.env` 缺失时生成一份，以及等 `/health` 就绪后打印一段状态汇总。用哪个都行：
 
-```bash tab="make selfhost"
+<Tabs items={["make selfhost", "docker compose"]}>
+<Tab value="make selfhost">
+
+```bash
 cd multica
 git pull --ff-only
 make selfhost
 ```
 
-```bash tab="docker compose"
+</Tab>
+<Tab value="docker compose">
+
+```bash
 cd multica
 git pull --ff-only
 docker compose -f docker-compose.selfhost.yml pull
 docker compose -f docker-compose.selfhost.yml up -d
 ```
+
+</Tab>
+</Tabs>
 
 和[第 2 步](#2-确认服务已经就绪)一样，backend 容器启动时会在对外提供服务之前先跑 `./migrate up`（`docker/entrypoint.sh`）。没有单独的升级命令，把新镜像起起来，本身就是升级这一步。想看过程：
 

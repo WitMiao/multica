@@ -133,7 +133,10 @@ MULTICA_PUBLIC_URL=https://api.example.com
 
 次に DNS を設定し、Caddy でローカルポートをプロキシします。Caddy が TLS 証明書を取得し、WebSocket を転送します。
 
-```text tab="2 つのドメイン"
+<Tabs items={["2 つのドメイン", "単一オリジン"]}>
+<Tab value="2 つのドメイン">
+
+```text
 app.example.com {
     # ブラウザの WebSocket は backend へ直接渡す
     @ws path /ws /ws/*
@@ -156,7 +159,10 @@ api.example.com {
 }
 ```
 
-```text tab="単一オリジン"
+</Tab>
+<Tab value="単一オリジン">
+
+```text
 multica.example.com {
     # CLI の到達確認: `multica setup` は <server-url>/health に GET を送り 200 を要求する。
     # 古い frontend はこのパスを転送しないため、backend に直接ルーティングする
@@ -185,6 +191,9 @@ multica.example.com {
     }
 }
 ```
+
+</Tab>
+</Tabs>
 
 **単一オリジン**（1 つのドメイン、または 1 台のホストに 1 つのポート。小規模サーバーで一般的な構成）では、デーモンが依存するパスを backend に明示的に転送し、残りを frontend に任せます。この場合は 2 つの URL をどちらもそこに向けます。`.env` の `FRONTEND_ORIGIN` と `MULTICA_APP_URL`、および `multica setup self-host` の `--server-url` と `--app-url` です。
 
@@ -271,15 +280,24 @@ irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps
 
 次に CLI をサービスに接続します。Multica サービスが動いている場所に合わせて選んでください。
 
-```bash tab="このコンピュータ"
+<Tabs items={["このコンピュータ", "別のマシン"]}>
+<Tab value="このコンピュータ">
+
+```bash
 multica setup self-host
 ```
 
-```bash tab="別のマシン"
+</Tab>
+<Tab value="別のマシン">
+
+```bash
 multica setup self-host \
   --server-url https://api.example.com \
   --app-url https://app.example.com
 ```
+
+</Tab>
+</Tabs>
 
 別のマシンの場合は、先ほど設定した 2 つの URL を渡します。このコマンドはまず `<server-url>/health` を確認し、次にブラウザを開いてログインを完了します。ログイン後はローカルに認証情報を保存し、デーモンを起動します。このステップで `Server not reachable` エラーが出る場合、`/health` のプローブが 200 を取得できていません。考えられる原因は 3 つです。プロキシがすべてのトラフィックをこのパスを転送しない古い frontend に向けている、プロキシが `/health` を backend にルーティングしていない、あるいは DNS・TLS・ファイアウォール・タイムアウト・backend からの 5xx といったより下位の障害です。詳細は[トラブルシューティング](/troubleshooting#multica-setup-reports-the-server-is-not-reachable)を参照してください。
 
@@ -372,18 +390,27 @@ docker compose -f docker-compose.selfhost.yml exec -T postgres \
 
 既存の構成では、次の 2 つの書き方は**同じ結果**になります。`Makefile` の `selfhost` ターゲットは同じ `docker compose pull` + `up -d` を実行し、加えて `.env` が無ければ生成し、`/health` を待ってからステータスの要約を表示します。好きな方を使ってください。
 
-```bash tab="make selfhost"
+<Tabs items={["make selfhost", "docker compose"]}>
+<Tab value="make selfhost">
+
+```bash
 cd multica
 git pull --ff-only
 make selfhost
 ```
 
-```bash tab="docker compose"
+</Tab>
+<Tab value="docker compose">
+
+```bash
 cd multica
 git pull --ff-only
 docker compose -f docker-compose.selfhost.yml pull
 docker compose -f docker-compose.selfhost.yml up -d
 ```
+
+</Tab>
+</Tabs>
 
 [ステップ 2](#2-サービスの準備完了を確認する) と同じく、backend コンテナはトラフィックを受け付ける前に起動時に `./migrate up` を実行します（`docker/entrypoint.sh`）。個別のアップグレードコマンドはなく、新しいイメージを立ち上げること自体が migration のステップです。様子を見るには次を実行します。
 

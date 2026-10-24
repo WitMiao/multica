@@ -9,17 +9,26 @@ import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 
 First work out which layer the problem lives in: the Multica service, the daemon, the runtime, or the AI coding tool. These commands are usually enough to surface the first meaningful error:
 
-```bash tab="Any install"
+<Tabs items={["Any install", "Self-hosted service"]}>
+<Tab value="Any install">
+
+```bash
 multica version
 multica auth status
 multica daemon status --output json
 multica daemon logs --lines 100
 ```
 
-```bash tab="Self-hosted service"
+</Tab>
+<Tab value="Self-hosted service">
+
+```bash
 curl -i https://api.example.com/health
 curl -i https://api.example.com/readyz
 ```
+
+</Tab>
+</Tabs>
 
 `/health` only says the API process is responding; `/readyz` also checks the database and migrations. Include the error, relevant logs, CLI version, and operating system when reporting a problem; remove tokens, email addresses, and other sensitive details before submitting.
 
@@ -282,13 +291,22 @@ Useful flags: `--dry-run` previews without writing; `--sleep-between-slices` add
 
 Common local ports are `8080` for the API, `3000` for the web app, and the daemon health-check port. Find the process holding the port first:
 
-```bash tab="macOS / Linux"
+<Tabs groupId="os" persist items={["macOS / Linux", "Windows"]}>
+<Tab value="macOS / Linux">
+
+```bash
 lsof -nP -iTCP:8080 -sTCP:LISTEN
 ```
 
-```bash tab="Windows"
+</Tab>
+<Tab value="Windows">
+
+```bash
 netstat -ano | findstr :8080
 ```
+
+</Tab>
+</Tabs>
 
 If it is another Multica checkout, run `make stop` in that directory first. Otherwise stop the offending program normally, or change the current service's port. Public ports 80/443 are listened on by a reverse proxy such as Caddy or Nginx.
 

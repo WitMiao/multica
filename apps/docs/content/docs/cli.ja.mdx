@@ -45,15 +45,24 @@ multica version
 
 接続先のサービスを選びます:
 
-```bash tab="Multica Cloud"
+<Tabs items={["Multica Cloud", "セルフホストインスタンス"]}>
+<Tab value="Multica Cloud">
+
+```bash
 multica setup
 ```
 
-```bash tab="セルフホストインスタンス"
+</Tab>
+<Tab value="セルフホストインスタンス">
+
+```bash
 multica setup self-host \
   --server-url https://api.example.com \
   --app-url https://app.example.com
 ```
+
+</Tab>
+</Tabs>
 
 `setup` はサーバーアドレスを保存し、ブラウザを開いてサインインを完了し、デーモンを起動します。完了したら確認します:
 

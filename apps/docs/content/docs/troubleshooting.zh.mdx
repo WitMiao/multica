@@ -9,17 +9,26 @@ import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 
 先确认问题发生在哪一层：Multica 服务、守护进程、运行时，还是 AI 编程工具。下面几条命令通常足以找到第一条有效错误：
 
-```bash tab="所有安装方式"
+<Tabs items={["所有安装方式", "自托管服务"]}>
+<Tab value="所有安装方式">
+
+```bash
 multica version
 multica auth status
 multica daemon status --output json
 multica daemon logs --lines 100
 ```
 
-```bash tab="自托管服务"
+</Tab>
+<Tab value="自托管服务">
+
+```bash
 curl -i https://api.example.com/health
 curl -i https://api.example.com/readyz
 ```
+
+</Tab>
+</Tabs>
 
 `/health` 只说明 API 进程正在响应；`/readyz` 还会检查数据库和 migration。反馈问题时附上报错、相关日志、CLI 版本和操作系统，提交前删掉令牌、邮箱等敏感信息。
 
@@ -271,13 +280,22 @@ DATABASE_URL='postgres://...' go run ./cmd/backfill_task_usage_hourly
 
 本地常用端口包括 API 的 `8080`、Web 的 `3000` 和守护进程健康检查端口。先找出占用者：
 
-```bash tab="macOS / Linux"
+<Tabs groupId="os" persist items={["macOS / Linux", "Windows"]}>
+<Tab value="macOS / Linux">
+
+```bash
 lsof -nP -iTCP:8080 -sTCP:LISTEN
 ```
 
-```bash tab="Windows"
+</Tab>
+<Tab value="Windows">
+
+```bash
 netstat -ano | findstr :8080
 ```
+
+</Tab>
+</Tabs>
 
 如果它是另一个 Multica checkout，先在那个目录运行 `make stop`。否则正常停止占用端口的程序，或修改当前服务端口。公网 80/443 由 Caddy、Nginx 等反向代理监听。
 

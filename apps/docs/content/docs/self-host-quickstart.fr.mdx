@@ -133,7 +133,10 @@ Avec cette configuration, tout le trafic du navigateur reste sur le domaine de l
 
 Configurez ensuite le DNS et placez Caddy en proxy devant les ports locaux. Caddy obtient les certificats TLS et relaie les WebSockets.
 
-```text tab="Deux domaines"
+<Tabs items={["Deux domaines", "Origine unique"]}>
+<Tab value="Deux domaines">
+
+```text
 app.example.com {
     # Transmettre directement les WebSockets du navigateur au backend
     @ws path /ws /ws/*
@@ -156,7 +159,10 @@ api.example.com {
 }
 ```
 
-```text tab="Origine unique"
+</Tab>
+<Tab value="Origine unique">
+
+```text
 multica.example.com {
     # Sonde d'accessibilité du CLI : `multica setup` envoie un GET à <server-url>/health et
     # attend un 200 ; les anciennes versions web ne le relaient pas, il faut donc le router directement
@@ -186,6 +192,9 @@ multica.example.com {
     }
 }
 ```
+
+</Tab>
+</Tabs>
 
 L'**origine unique** (un seul domaine, ou un seul hôte avec un seul port, courant sur les petits serveurs) route explicitement vers le backend les chemins indispensables au daemon et laisse le frontend gérer le reste. Faites alors pointer les deux URL vers elle : `FRONTEND_ORIGIN` et `MULTICA_APP_URL` dans `.env`, puis `--server-url` et `--app-url` dans `multica setup self-host`.
 
@@ -272,15 +281,24 @@ irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps
 
 Reliez ensuite le CLI à votre service. Choisissez l'endroit où tourne le service Multica :
 
-```bash tab="Sur cet ordinateur"
+<Tabs items={["Sur cet ordinateur", "Sur une autre machine"]}>
+<Tab value="Sur cet ordinateur">
+
+```bash
 multica setup self-host
 ```
 
-```bash tab="Sur une autre machine"
+</Tab>
+<Tab value="Sur une autre machine">
+
+```bash
 multica setup self-host \
   --server-url https://api.example.com \
   --app-url https://app.example.com
 ```
+
+</Tab>
+</Tabs>
 
 Si le service tourne sur une autre machine, passez les deux URL configurées précédemment. La commande vérifie d'abord `<server-url>/health`, puis ouvre un navigateur pour terminer la connexion. Une fois la connexion effectuée, elle enregistre les identifiants en local et démarre le daemon. Une erreur `Server not reachable` à cette étape signifie que la sonde n'a pas obtenu de 200 sur `/health`. Trois causes sont possibles : le proxy transmet tout à une version web qui ne relaie pas ce chemin ; le proxy ne route pas du tout `/health` vers le backend ; ou une défaillance de plus bas niveau (DNS, TLS, pare-feu, délai d'attente dépassé, 5xx renvoyé par le backend). Consultez [Dépannage](/troubleshooting#multica-setup-reports-the-server-is-not-reachable).
 
@@ -373,18 +391,27 @@ Utilisez vos propres `POSTGRES_USER` / `POSTGRES_DB` de `.env` si vous avez modi
 
 Sur une installation existante, les deux commandes produisent le **même résultat** : la cible `selfhost` du `Makefile` exécute les mêmes `docker compose pull` + `up -d`, et en plus crée `.env` s'il est absent et attend `/health` avant d'afficher un résumé de l'état. Choisissez celle que vous préférez :
 
-```bash tab="make selfhost"
+<Tabs items={["make selfhost", "docker compose"]}>
+<Tab value="make selfhost">
+
+```bash
 cd multica
 git pull --ff-only
 make selfhost
 ```
 
-```bash tab="docker compose"
+</Tab>
+<Tab value="docker compose">
+
+```bash
 cd multica
 git pull --ff-only
 docker compose -f docker-compose.selfhost.yml pull
 docker compose -f docker-compose.selfhost.yml up -d
 ```
+
+</Tab>
+</Tabs>
 
 Comme à l'[étape 2](#2-vérifier-que-les-services-sont-prêts), le conteneur backend exécute `./migrate up` au démarrage (`docker/entrypoint.sh`) avant de servir le trafic. Il n'y a pas de commande de mise à niveau distincte : démarrer la nouvelle image *est* l'étape de migration. Pour suivre le déroulement :
 
