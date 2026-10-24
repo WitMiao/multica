@@ -1,5 +1,5 @@
 import "../global.css";
-import { RootProvider } from "fumadocs-ui/provider";
+import { RootProvider } from "fumadocs-ui/provider/next";
 import { DocsFrameworkProvider } from "@/components/i18n-frame-provider";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { Inter, Geist_Mono, Source_Serif_4 } from "next/font/google";
@@ -97,12 +97,13 @@ export default async function Layout({
           <DocsFrameworkProvider>
             <DocsLayout
             tree={source.getPageTree(lang)}
-            // Suppress Fumadocs's default sidebar-footer icons (theme +
+            // Suppress Fumadocs's default sidebar-footer controls (theme +
             // language + search). Our custom <DocsSettings> is mounted as
             // the sidebar footer instead — two labelled buttons, not three
             // icons.
             themeSwitch={{ enabled: false }}
             searchToggle={{ enabled: false }}
+            slots={{ languageSelect: false }}
             sidebar={{ footer: <DocsSettings locale={lang} /> }}
             {...baseOptions}
           >
