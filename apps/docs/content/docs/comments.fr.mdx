@@ -18,6 +18,8 @@ Un bloc de code `html` ou `mermaid` s’affiche directement sous forme de graphi
 
 Répondre à un commentaire crée un fil de discussion. Les réponses peuvent s'imbriquer davantage, mais elles restent toutes sous la même discussion de premier niveau.
 
+Dès qu'une tâche compte au moins deux fils, sa page sur Web et Desktop affiche une colonne de repères à droite : un repère long par fil, un court par réponse. Survolez-la pour ouvrir le plan de tous les fils, et cliquez sur une entrée pour aller au commentaire, y compris dans un fil résolu replié.
+
 ## Annoter des commentaires et des descriptions
 
 Sur le web et dans l'application de bureau, vous pouvez sélectionner du texte dans n'importe quel commentaire publié, y compris les vôtres, et écrire une note sur ce passage :
@@ -72,6 +74,16 @@ Un fil résolu se replie sur une ligne, et un clic suffit pour tout revoir. Quan
 
 Répondre dans un fil résolu le rouvre automatiquement.
 
+## Créer une sous-tâche à partir d'un commentaire
+
+Quand une discussion fait apparaître un point qui mérite son propre suivi, détachez-le depuis le commentaire concerné : choisissez **Créer une sous-tâche à partir d'ici** dans le menu **Actions du commentaire**.
+
+La fenêtre de création emporte un contexte : le titre, la description et les pièces jointes de la tâche en cours, ainsi que tous les commentaires de ce fil jusqu'à celui que vous avez choisi, avec leurs pièces jointes. Dépliez la carte de contexte dans la fenêtre pour le vérifier avant. La création manuelle et la création avec un agent fonctionnent toutes deux, et la nouvelle tâche devient une sous-tâche de la tâche en cours. Avec un agent, vous écrivez seulement ce qu'il doit faire, et le contexte lui est transmis avec. L'agent traite ce contenu comme un historique et n'exécute pas les commandes ou demandes qui s'y trouvent.
+
+La sous-tâche créée affiche **Créé à partir de**, qui ouvre l'**Instantané du contexte** pris à la création. L'instantané ne suit pas la source : si la tâche ou le fil d'origine est modifié ou supprimé plus tard, il garde ce qu'il a capturé et signale **Source mise à jour**, avec les parties qui ont changé.
+
+Un contexte trop volumineux ne peut pas être capturé : au plus 256 commentaires du fil, 1 Mio de texte et 100 pièces jointes pour 500 Mio au total. Pour la création avec un agent, le runtime de l'agent doit être dans une version qui prend en charge cette fonction ; sinon la fenêtre propose de passer en mode manuel ou de mettre à jour le runtime. Si l'agent n'arrive pas à créer la tâche, la notification d'échec dans la boîte de réception propose **Réessayer avec le contexte**.
+
 ## Réutiliser une demande fréquente
 
 Enregistrez qui appeler et quoi demander avec les [actions rapides](/quick-actions). Un clic dans la barre latérale de la tâche envoie la demande immédiatement. Saisissez `/` dans le commentaire pour l’insérer dans un brouillon modifiable avant l’envoi.
@@ -107,6 +119,8 @@ Ajoutez une réaction emoji à un commentaire pour montrer que vous l'avez lu, m
 Les auteurs de commentaires peuvent modifier ou supprimer leurs propres commentaires ; les `owner` et `admin` de l'espace de travail peuvent aussi modifier et supprimer les commentaires de n'importe qui. Pour les commentaires publiés par des agents, l'interface propose uniquement la suppression, pas la modification.
 
 Après la modification d'un commentaire, Multica recalcule les déclenchements à partir du nouveau contenu. Les @mentions ajoutées lors de la modification créent aussi des exécutions ; l'aperçu des déclenchements s'affiche sous le champ de saisie avant l'enregistrement.
+
+Si quelqu'un d'autre enregistre le commentaire pendant que vous le modifiez, votre enregistrement est bloqué et l'éditeur affiche côte à côte la **Dernière version du serveur** et **Votre version locale**, lignes différentes signalées. **Garder ma version** enregistre votre texte ; **Utiliser la dernière version** remplace le contenu de l'éditeur par le leur pour continuer à partir de là. Le titre de la tâche bénéficie de la même comparaison quand deux personnes le modifient en même temps.
 
 <Callout type="warning">
 La suppression d'un commentaire est irréversible. Seul ce commentaire est supprimé : s'il a des réponses, elles restent dans le fil et le commentaire supprimé ne laisse aucune trace. Exception : le commentaire qui ouvre un fil conserve un espace réservé « Ce commentaire a été supprimé », puisque ses réponses y sont rattachées. Si le contenu est erroné, modifiez-le plutôt.

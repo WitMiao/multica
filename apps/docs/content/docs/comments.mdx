@@ -18,6 +18,8 @@ An `html` or `mermaid` code block renders in place as a chart or diagram, with a
 
 Replying to a comment starts a thread. Replies can nest further, but they all stay under the same top-level thread.
 
+Once an issue has two or more threads, the issue page on Web and Desktop shows a column of ticks on the right: a long tick per thread and a short one per reply. Hover it to open an outline of every thread, and click any entry to jump to that comment, including comments inside folded, resolved threads.
+
 ## Annotate comments and descriptions
 
 On Web and Desktop, you can select text in any posted comment, your own included, and write a note on that passage:
@@ -72,6 +74,16 @@ A resolved thread folds into one line, and clicking it shows everything again. W
 
 Replying in a resolved discussion reopens it automatically.
 
+## Create a sub-issue from a comment
+
+When a discussion turns up something that needs its own follow-up, split it off from that comment: choose **Create sub-issue from here** in the **Comment actions** menu.
+
+The create dialog carries a context with it: the current issue's title, description, and attachments, plus every comment in that thread up to and including the one you picked, with their attachments. Expand the context card in the dialog to check it first. Both manual create and Create with agent work, and the new issue becomes a sub-issue of the current one. With an agent, you only write what it should do, and the context goes along with it. The agent treats that content as historical background and does not carry out commands or requests that appear in it.
+
+The new sub-issue shows **Created from**, which opens the **Context snapshot** taken at creation. The snapshot does not follow the source: if the original issue or thread is edited or deleted later, the snapshot keeps what it captured and is marked **Source updated**, with the parts that changed.
+
+Context that is too large cannot be captured: up to 256 comments from the thread, 1 MiB of text, and 100 attachments totaling 500 MiB. For Create with agent, the agent's runtime must be on a version that supports this; otherwise the dialog asks you to switch to manual or update the runtime. If the agent fails to create the issue, the failure notification in your inbox offers **Retry with context**.
+
 ## Reuse a frequent request
 
 Use [Quick Actions](/quick-actions) to save who to ask and what to say. Click one in the issue sidebar to send it immediately, or type `/` in the comment box to insert it as a draft you can edit before sending.
@@ -107,6 +119,8 @@ Add an emoji reaction to a comment to show you've read it, agree, or give quick 
 Comment authors can edit or delete their own comments; workspace `owner`s and `admin`s can also edit and delete anyone's comments. For comments posted by agents, the UI only offers delete, not edit.
 
 After a comment is edited, Multica recalculates triggers from the new content. @-mentions added during the edit create runs too; the trigger preview shows under the input before you save.
+
+If someone else saves the comment while you are editing it, your save is stopped and the editor shows **Latest server version** and **Your local version** side by side, with the differing lines marked. **Keep my version** saves your text; **Use the latest version** replaces the editor content with theirs so you can keep editing from there. The issue title gets the same comparison when two people change it at once.
 
 <Callout type="warning">
 Deleting a comment cannot be undone. Only that comment is deleted: if it has replies, they stay in the thread and the deleted comment leaves no trace. The exception is the comment that starts a thread — it keeps a "This comment was deleted" placeholder, since its replies hang off it. If the content is wrong, edit it instead.
