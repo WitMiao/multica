@@ -6,6 +6,7 @@ description: 安装 Multica Desktop，使用桌面标签页和内置守护进程
 import { Callout } from "fumadocs-ui/components/callout";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { DesktopTabsDemo } from "@/components/demos/desktop-tabs-demo";
 
 Multica Desktop 提供 macOS、Windows 和 Linux 版本。它和 Web 版使用相同的账号与工作区数据，但会在本机自动管理守护进程，并为不同工作区保留各自的标签页。
 
@@ -47,7 +48,9 @@ Desktop 内置的 CLI 只供应用管理运行时使用。如果你还要在终�
 
 Desktop 会为每个工作区单独保存标签页。例如，你在工作区 A 打开了三个任务，切到工作区 B 后会看到 B 自己的标签页；切回 A 时，之前的三个标签页仍然保留。
 
-同一资源只会在当前工作区打开一次。标签页可以重新排序、固定、关闭，也会保留各自的前进、后退和滚动位置。点击或粘贴本部署的应用链接会直接在标签页中打开，不会跳转到浏览器。
+<DesktopTabsDemo />
+
+同一资源只会在当前工作区打开一次。标签页可以重新排序、固定、关闭，也会保留各自的前进、后退和滚动位置。固定的标签页排在最左边，没有关闭按钮，要先取消固定才能关；在它里面打开别的页面时会新开一个标签页，它自己停在原页面。点击或粘贴本部署的应用链接会直接在标签页中打开，不会跳转到浏览器。
 
 退出登录会清除本机保存的所有标签页，避免下一位登录者看到上一个账号留下的页面。
 

@@ -6,6 +6,7 @@ description: Installez Multica Desktop, utilisez les onglets de Desktop et le da
 import { Callout } from "fumadocs-ui/components/callout";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { DesktopTabsDemo } from "@/components/demos/desktop-tabs-demo";
 
 Multica Desktop est disponible pour macOS, Windows et Linux. Il utilise le même compte et les mêmes données d'espace de travail que l'application web, mais il gère automatiquement le daemon sur votre machine et conserve un ensemble d'onglets distinct pour chaque espace de travail.
 
@@ -47,7 +48,9 @@ Le CLI intégré à Desktop sert uniquement au runtime géré par l'application.
 
 Desktop enregistre les onglets par espace de travail. Par exemple, si vous ouvrez trois tâches dans l'espace de travail A puis passez à l'espace de travail B, vous voyez les onglets propres à B ; revenez à A et les trois onglets précédents sont toujours là.
 
-Une même ressource ne s'ouvre qu'une seule fois dans l'espace de travail courant. Les onglets peuvent être réordonnés, épinglés et fermés, et chacun conserve son propre historique de navigation avant/arrière et sa position de défilement. Cliquer sur un lien de l'application pour ce déploiement, ou le coller, l'ouvre directement dans un onglet au lieu de basculer vers le navigateur.
+<DesktopTabsDemo />
+
+Une même ressource ne s'ouvre qu'une seule fois dans l'espace de travail courant. Les onglets peuvent être réordonnés, épinglés et fermés, et chacun conserve son propre historique de navigation avant/arrière et sa position de défilement. Les onglets épinglés se placent à gauche et n'ont pas de bouton de fermeture ; désépinglez un onglet pour le fermer. Ouvrir une autre page depuis un onglet épinglé crée un nouvel onglet, et l'onglet épinglé reste sur sa page. Cliquer sur un lien de l'application pour ce déploiement, ou le coller, l'ouvre directement dans un onglet au lieu de basculer vers le navigateur.
 
 La déconnexion efface tous les onglets enregistrés sur la machine : la personne suivante qui se connecte ne voit jamais les pages laissées par le compte précédent.
 

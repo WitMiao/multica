@@ -4,6 +4,7 @@ description: "Comparez les outils de codage IA pris en charge par Multica, et le
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { ProviderPickerDemo } from "@/components/demos/provider-picker-demo";
 
 Multica ne remplace pas l'outil de codage IA que vous utilisez : un runtime invoque l'outil déjà installé et connecté sur l'ordinateur, puis renvoie la progression et les résultats dans la tâche. Si vous utilisez déjà l'un de ces outils, vous pouvez généralement le garder. Si vous n'avez pas encore choisi, regardez quatre points :
 
@@ -16,36 +17,41 @@ Les étapes d'installation se trouvent dans [Installer les outils de codage IA](
 
 ## Outils pris en charge
 
-| Outil | Commande détectée | Reprise de session | MCP géré par Multica | Chemin d'injection des skills |
-|---|---|---:|---:|---|
-| Antigravity | `agy` | ✓ | — | `.agents/skills/` |
-| Claude Code | `claude` | ✓ | ✓ | `.claude/skills/` |
-| CodeBuddy | `codebuddy` | ✓ | ✓ | `.codebuddy/skills/` |
-| CodeArts | `codearts` | ✓ | ✓ | `.codeartsdoer/skills/` |
-| Codex | `codex` | ✓ | ✓ | `$CODEX_HOME/skills/` |
-| GitHub Copilot CLI | `copilot` | ✓ | — | `.github/skills/` |
-| Cursor Agent | `cursor-agent` | ✓ | ✓ | `.cursor/skills/` |
-| DeepSeek Harness | `dsh` | ✓ | ✓ | `.dsh/skills/` |
-| DevEco Code | `deveco` | ✓ | — | `.deveco/skills/` |
-| Grok | `grok` | ✓ | ✓ | `.grok/skills/` |
-| Hermes | `hermes` | ✓ | ✓ | `HERMES_HOME/skills/` propre à chaque exécution |
-| Kimi CLI | `kimi` | ✓ | ✓ | `.kimi/skills/` |
-| Kiro CLI | `kiro-cli` | ✓ | ✓ | `.kiro/skills/` |
-| MiniMax Code | `mcode` | — | ✓ | `.minimax/skills/` |
-| Muse Code | `muse` | ✓ | — | `.agents/skills/` |
-| OpenClaw | `openclaw` | ✓ | ✓ | `skills/` |
-| OpenCode | `opencode` | ✓ | ✓ | `.opencode/skills/` |
-| Pi | `pi` | ✓ | ✓ | `.pi/skills/` |
-| Oh-My-Pi | `omp` | ✓ | ✓ | `.omp/skills/` |
-| Qoder CLI | `qodercli` | ✓ | ✓ | `.qoder/skills/` |
-| Qoder CN CLI | `qoderclicn` | ✓ | ✓ | `.qoder/skills/` |
-| Qwen Code | `qwen` | ✓ | ✓ | `.qwen/skills/` |
-| QwenPaw | `qwenpaw` | ✓ | ✓ | `skills/` de l'espace de travail propre à chaque exécution |
-| Reasonix | `reasonix` | ✓ | ✓ | `.reasonix/skills/` |
-| Trae CLI | `traecli` | ✓ | ✓ | `.traecli/skills/` |
-| Dim | `dim` | ✓ | ✓ | — |
+<ProviderPickerDemo />
+
+| Outil | Commande détectée | Reprise de session | MCP géré par Multica | Modèle choisi dans Multica | Chemin d'injection des skills |
+|---|---|---:|---:|---:|---|
+| Antigravity | `agy` | ✓ | — | ✓ | `.agents/skills/` |
+| Claude Code | `claude` | ✓ | ✓ | ✓ | `.claude/skills/` |
+| CodeBuddy | `codebuddy` | ✓ | ✓ | ✓ | `.codebuddy/skills/` |
+| CodeArts | `codearts` | ✓ | ✓ | ✓ | `.codeartsdoer/skills/` |
+| Codex | `codex` | ✓ | ✓ | ✓ | `$CODEX_HOME/skills/` |
+| GitHub Copilot CLI | `copilot` | ✓ | — | ✓ | `.github/skills/` |
+| Cursor Agent | `cursor-agent` | ✓ | ✓ | ✓ | `.cursor/skills/` |
+| DeepSeek Harness | `dsh` | ✓ | ✓ | ✓ | `.dsh/skills/` |
+| DevEco Code | `deveco` | ✓ | — | ✓ | `.deveco/skills/` |
+| Grok | `grok` | ✓ | ✓ | ✓ | `.grok/skills/` |
+| Hermes | `hermes` | ✓ | ✓ | ✓ | `HERMES_HOME/skills/` propre à chaque exécution |
+| Kimi CLI | `kimi` | ✓ | ✓ | ✓ | `.kimi/skills/` |
+| Kiro CLI | `kiro-cli` | ✓ | ✓ | ✓ | `.kiro/skills/` |
+| MiniMax Code | `mcode` | — | ✓ | — | `.minimax/skills/` |
+| Muse Code | `muse` | ✓ | — | ✓ | `.agents/skills/` |
+| OpenClaw | `openclaw` | ✓ | ✓ | ✓ | `skills/` |
+| OpenCode | `opencode` | ✓ | ✓ | ✓ | `.opencode/skills/` |
+| Pi | `pi` | ✓ | ✓ | ✓ | `.pi/skills/` |
+| Oh-My-Pi | `omp` | ✓ | ✓ | ✓ | `.omp/skills/` |
+| Qoder CLI | `qodercli` | ✓ | ✓ | ✓ | `.qoder/skills/` |
+| Qoder CN CLI | `qoderclicn` | ✓ | ✓ | ✓ | `.qoder/skills/` |
+| Qwen Code | `qwen` | ✓ | ✓ | ✓ | `.qwen/skills/` |
+| QwenPaw | `qwenpaw` | ✓ | ✓ | — | `skills/` de l'espace de travail propre à chaque exécution |
+| Reasonix | `reasonix` | ✓ | ✓ | ✓ | `.reasonix/skills/` |
+| Trae CLI | `traecli` | ✓ | ✓ | ✓ | `.traecli/skills/` |
+| Dim | `dim` | ✓ | ✓ | ✓ | — |
+| ZeroClaw | `zeroclaw` | ✓ | — | — | — |
 
 « MCP géré par Multica » signifie que vous pouvez définir des serveurs MCP dans la configuration de l'agent et que Multica les transmet à l'outil avant une exécution. Cette colonne indique seulement si Multica peut s'en charger, pas si l'outil dispose d'autres moyens de configurer MCP.
+
+Pour les outils marqués — dans « Modèle choisi dans Multica », le modèle se choisit dans la configuration propre à l'outil ; voir [Sources des modèles](#sources-des-modèles).
 
 ## Sources des modèles
 
@@ -53,7 +59,7 @@ Lorsque vous créez un agent, la liste des modèles provient du runtime correspo
 
 Si vous ne choisissez pas de modèle, Multica utilise le modèle par défaut de l'outil. Si la liste est vide, vérifiez que le runtime est en ligne et que l'outil est connecté, puis actualisez la liste des modèles.
 
-QwenPaw et MiniMax Code font exception : ils n'acceptent pas de modèle choisi depuis Multica, donc le sélecteur est inactif et affiche « Géré par le runtime ». Choisissez plutôt le modèle dans la configuration propre à l'outil. Pour ces outils, une liste de modèles vide est normale et n'indique pas que le runtime est hors ligne.
+QwenPaw, MiniMax Code et ZeroClaw font exception : ils n'acceptent pas de modèle choisi depuis Multica, donc le sélecteur est inactif et affiche « Géré par le runtime ». Choisissez plutôt le modèle dans la configuration propre à l'outil. Pour ces outils, une liste de modèles vide est normale et n'indique pas que le runtime est hors ligne.
 
 DeepSeek Harness publie son catalogue de modèles depuis le runtime lui-même (`dsh --profile multica --list-models`). Ses identifiants de modèle utilisent la forme `provider/model` (par exemple `deepseek-official/deepseek-chat`) ; sélectionnez donc l'identifiant complet dans la liste.
 
@@ -71,13 +77,15 @@ Les règles de relance et de reprise de session se trouvent dans [Exécutions](/
 
 ## Configuration MCP
 
-Antigravity, GitHub Copilot CLI et DevEco Code ne lisent pas encore la configuration MCP d'un agent ; le champ n'est donc pas affiché lors de la création d'agents pour ces outils.
+Antigravity, GitHub Copilot CLI, DevEco Code, Muse Code et ZeroClaw ne lisent pas encore la configuration MCP d'un agent ; le champ n'est donc pas affiché lors de la création d'agents pour ces outils.
 
 La transmission d'une configuration MCP gérée à Pi nécessite Pi 0.99.0 ou une version ultérieure. Les versions antérieures de Pi continuent d'exécuter les agents sans configuration MCP.
 
 <Callout type="warning">
 Les commandes, arguments et variables d'environnement des serveurs MCP sont enregistrés côté serveur avec la configuration de l'agent. N'écrivez pas dans la configuration des identifiants locaux que vous n'avez pas besoin de partager.
 </Callout>
+
+Les serveurs MCP déjà configurés sur la machine du runtime sont fusionnés sur cette machine avec la configuration de l'agent ; voir [Configuration MCP locale](/daemon-runtimes#local-mcp).
 
 ## Injection des skills
 

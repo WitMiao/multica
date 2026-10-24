@@ -7,6 +7,7 @@ import { Callout } from "fumadocs-ui/components/callout";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { LocalDirModeDemo } from "@/components/demos/local-dir-mode-demo";
 
 [Project](/projects) resources tell agents which code this body of work uses and where to run. Resources stay linked to the project, so there is no need to re-paste repository URLs or local paths into every issue.
 
@@ -84,6 +85,8 @@ In the default `in_place` mode a local directory is not an isolated environment:
 
 A local directory has two execution modes, set per resource with `execution_mode`. Desktop labels them **Direct** and **Parallel**; the API, the CLI and the rest of this page use the identifiers.
 
+<LocalDirModeDemo />
+
 <Tabs items={["in_place (Direct, default)", "worktree (Parallel)"]}>
 <Tab value="in_place (Direct, default)" id="in-place">
 
@@ -115,6 +118,8 @@ If that state cannot be reproduced faithfully, including when there is more untr
 <Accordion title="The result is a branch in your repo" id="result-is-a-branch">
 
 There is one branch per issue rather than one per run: `agent/<agent>/<issue>` (a chat gets `agent/<agent>/chat-<session>`). The run's **Run details** panel shows the branch name (and lets you copy it); you can also find it with `git branch`. Review it with `git log` / `git diff`, and merge or cherry-pick it yourself. Multica never merges it for you.
+
+`<agent>` comes from the agent's name: lowercased, with everything other than a–z and 0–9 turned into `-`, up to 30 characters. A name with no Latin letters or digits becomes `agent`. So Ops helper working on OPS-21 gets `agent/ops-helper/ops-21`, while an agent named 运营助手 gets `agent/agent/ops-21`. `<issue>` is the issue identifier in lowercase.
 
 A run that failed partway still reports its branch, because it still committed whatever the agent had produced.
 
@@ -163,7 +168,7 @@ Its branch is deleted rather than left as an empty entry in `git branch`, unless
 </Accordion>
 <Accordion title="The branch and hidden ref left in your repo" id="what-stays-in-your-repo">
 
-The worktree lives in the runtime's workspace directory and is reclaimed on the normal cleanup schedule. Two things persist in your repo: the branch, and one hidden ref per branch under `refs/multica/local-state/` recording who owns it and what your directory looked like when it was last continued.
+The worktree lives in the runtime's workspace directory and is reclaimed on [the normal cleanup schedule](/daemon-runtimes#cleanup). Two things persist in your repo: the branch, and one hidden ref per branch under `refs/multica/local-state/` recording who owns it and what your directory looked like when it was last continued.
 
 The hidden refs never appear in `git branch`; list them with `git for-each-ref refs/multica`. Multica deletes each one with its branch, and drops any whose branch you deleted yourself the next time a run starts on that repo. You can also remove them at once with `git for-each-ref --format='%(refname)' refs/multica | xargs -n1 git update-ref -d`.
 

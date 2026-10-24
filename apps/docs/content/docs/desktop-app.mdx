@@ -6,6 +6,7 @@ description: Install Multica Desktop, use desktop tabs and the built-in daemon, 
 import { Callout } from "fumadocs-ui/components/callout";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { DesktopTabsDemo } from "@/components/demos/desktop-tabs-demo";
 
 Multica Desktop is available for macOS, Windows, and Linux. It uses the same account and workspace data as the web app, but it manages the daemon on your machine automatically and keeps a separate set of tabs for each workspace.
 
@@ -47,7 +48,9 @@ The CLI bundled with Desktop only serves the app's managed runtime. If you also 
 
 Desktop saves tabs per workspace. For example, if you open three issues in workspace A and switch to workspace B, you see B's own tabs; switch back to A and the three earlier tabs are still there.
 
-A given resource opens only once in the current workspace. Tabs can be reordered, pinned, and closed, and each keeps its own forward/back history and scroll position. Clicking or pasting an app link for this deployment opens it directly in a tab instead of jumping to the browser.
+<DesktopTabsDemo />
+
+A given resource opens only once in the current workspace. Tabs can be reordered, pinned, and closed, and each keeps its own forward/back history and scroll position. Pinned tabs sit at the left end and have no close button; unpin a tab to close it. Opening another page from a pinned tab opens a new tab, and the pinned tab stays where it is. Clicking or pasting an app link for this deployment opens it directly in a tab instead of jumping to the browser.
 
 Logging out clears every tab saved on the machine, so the next person to sign in never sees pages left behind by the previous account.
 

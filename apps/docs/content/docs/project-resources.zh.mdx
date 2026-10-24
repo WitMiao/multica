@@ -7,6 +7,7 @@ import { Callout } from "fumadocs-ui/components/callout";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { LocalDirModeDemo } from "@/components/demos/local-dir-mode-demo";
 
 [项目](/projects)资源告诉智能体这组工作会用到哪些代码，以及在哪里执行。资源会持续关联在项目上，不必在每条任务中重复粘贴仓库地址或本地路径。
 
@@ -85,6 +86,8 @@ import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 
 本地目录有两种执行模式，按资源逐个设置。在资源面板里可以直接切换，CLI 用 `--execution-mode`。Desktop 里这两种模式显示为 **原地** 和 **并行**；API、CLI 和本页其余部分都使用标识符。
 
+<LocalDirModeDemo />
+
 <Tabs items={["in_place（原地，默认）", "worktree（并行）"]}>
 <Tab value="in_place（原地，默认）" id="in-place">
 
@@ -116,6 +119,8 @@ import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 <Accordion title="结果是你仓库里的一个分支" id="result-is-a-branch">
 
 分支按任务而不是按每次执行来分：`agent/<agent>/<issue>`（chat 则是 `agent/<agent>/chat-<session>`）。本次运行的**详情**面板里会显示分支名（可直接复制），也可以用 `git branch` 找到它。用 `git log` / `git diff` review，然后自己决定 merge 还是 cherry-pick，Multica 不会替你合并。
+
+`<agent>` 由智能体名字得来：转成小写后只保留英文字母和数字，其余字符换成 `-`，最长 30 个字符；名字里没有英文字母和数字时写作 `agent`。所以"运营助手"处理 OPS-21 时，分支是 `agent/agent/ops-21`。`<issue>` 是小写的任务编号。
 
 中途失败的运行同样会报告它的分支，因为它已经把智能体做出来的部分提交进去了。
 
@@ -164,7 +169,7 @@ import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 </Accordion>
 <Accordion title="留在你仓库里的分支和隐藏 ref" id="what-stays-in-your-repo">
 
-worktree 位于运行时的工作区目录内，会按正常的清理周期回收。留在你仓库里的有两样东西：分支，以及每条分支对应的一个隐藏 ref（在 `refs/multica/local-state/` 下），记录这条分支归谁所有、以及上次续接时你目录里的内容。
+worktree 位于运行时的工作区目录内，会按[正常的清理周期](/daemon-runtimes#cleanup)回收。留在你仓库里的有两样东西：分支，以及每条分支对应的一个隐藏 ref（在 `refs/multica/local-state/` 下），记录这条分支归谁所有、以及上次续接时你目录里的内容。
 
 隐藏 ref 不会出现在 `git branch` 里，可以用 `git for-each-ref refs/multica` 查看。Multica 删除分支时会一并删掉它；你自己删掉的分支所对应的 ref，会在下一次该仓库上有运行开始时被清理。也可以用 `git for-each-ref --format='%(refname)' refs/multica | xargs -n1 git update-ref -d` 一次性清掉。
 

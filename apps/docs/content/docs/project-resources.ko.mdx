@@ -7,6 +7,7 @@ import { Callout } from "fumadocs-ui/components/callout";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { LocalDirModeDemo } from "@/components/demos/local-dir-mode-demo";
 
 [프로젝트](/projects) 리소스는 이 작업 묶음에 어떤 코드가 필요하며 어디에서 실행할지 에이전트에게 알려 줍니다. 리소스는 프로젝트에 계속 연결되어 있으므로 각 태스크에 저장소 주소나 로컬 경로를 반복해서 붙여 넣을 필요가 없습니다.
 
@@ -84,6 +85,8 @@ Desktop의 로컬 데몬이 온라인인지 확인합니다.
 
 로컬 디렉터리에는 두 가지 실행 모드가 있으며 리소스별로 설정합니다. 리소스 패널에서 전환할 수 있고, CLI에서는 `--execution-mode`를 사용합니다. Desktop에서는 **직접**과 **병렬**로 표시하며, API와 CLI, 이 문서의 나머지 부분에서는 식별자를 사용합니다.
 
+<LocalDirModeDemo />
+
 <Tabs items={["in_place(직접, 기본값)", "worktree(병렬)"]}>
 <Tab value="in_place(직접, 기본값)" id="in-place">
 
@@ -115,6 +118,8 @@ git으로 관리되지 않는 일반 디렉터리는 이 모드만 사용할 수
 <Accordion title="결과물은 저장소 안의 브랜치입니다" id="result-is-a-branch">
 
 브랜치는 실행마다가 아니라 태스크마다 하나씩, `agent/<agent>/<issue>` 형식입니다(채팅은 `agent/<agent>/chat-<session>`). 실행의 **실행 세부 정보** 패널에 브랜치 이름이 표시되고 복사할 수 있으며, `git branch`로도 찾을 수 있습니다. `git log` / `git diff`로 검토한 뒤 병합할지 cherry-pick할지 직접 결정합니다. Multica가 대신 병합하지 않습니다.
+
+`<agent>`는 에이전트 이름에서 만들어집니다. 소문자로 바꾼 뒤 영문자와 숫자만 남기고 나머지 문자는 `-`로 바꾸며, 최대 30자입니다. 영문자나 숫자가 없는 이름은 `agent`가 됩니다. 그래서 "운영 도우미"가 OPS-21을 처리하면 브랜치는 `agent/agent/ops-21`입니다. `<issue>`는 소문자로 바꾼 태스크 번호입니다.
 
 도중에 실패한 실행도 브랜치를 보고합니다. 에이전트가 만든 부분은 이미 커밋되어 있기 때문입니다.
 
@@ -163,7 +168,7 @@ git으로 관리되지 않는 일반 디렉터리는 이 모드만 사용할 수
 </Accordion>
 <Accordion title="저장소에 남는 브랜치와 숨은 ref" id="what-stays-in-your-repo">
 
-워크트리는 런타임의 작업 공간 디렉터리 안에 있으므로 일반적인 정리 주기에 따라 회수됩니다. 저장소에는 두 가지가 남습니다. 브랜치, 그리고 브랜치마다 하나씩 있는 숨은 ref(`refs/multica/local-state/` 아래)입니다. 숨은 ref는 그 브랜치의 소유자와 마지막으로 이어받을 때 사용자 디렉터리의 내용을 기록합니다.
+워크트리는 런타임의 작업 공간 디렉터리 안에 있으므로 [일반적인 정리 주기](/daemon-runtimes#cleanup)에 따라 회수됩니다. 저장소에는 두 가지가 남습니다. 브랜치, 그리고 브랜치마다 하나씩 있는 숨은 ref(`refs/multica/local-state/` 아래)입니다. 숨은 ref는 그 브랜치의 소유자와 마지막으로 이어받을 때 사용자 디렉터리의 내용을 기록합니다.
 
 숨은 ref는 `git branch`에 나타나지 않으며 `git for-each-ref refs/multica`로 확인할 수 있습니다. Multica는 브랜치를 지울 때 함께 지우고, 사용자가 직접 지운 브랜치의 ref는 그 저장소에서 다음 실행이 시작될 때 정리합니다. `git for-each-ref --format='%(refname)' refs/multica | xargs -n1 git update-ref -d`로 한 번에 지울 수도 있습니다.
 

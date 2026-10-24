@@ -7,6 +7,7 @@ import { Callout } from "fumadocs-ui/components/callout";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { LocalDirModeDemo } from "@/components/demos/local-dir-mode-demo";
 
 [プロジェクト](/projects)のリソースは、この一連の作業がどのコードを使い、どこで実行するかをエージェントに伝えます。リソースはプロジェクトに紐づいたまま保たれるため、リポジトリの URL やローカルパスをタスクごとに貼り直す必要はありません。
 
@@ -86,6 +87,8 @@ Desktop のローカルデーモンがオンラインであることを確認し
 
 ローカルディレクトリには 2 つの実行モードがあり、リソースごとに設定します。リソースパネルから切り替えられるほか、CLI では `--execution-mode` を使います。Desktop での表示は **直接** と **並行** で、API・CLI とこのページの以降では識別子を使います。
 
+<LocalDirModeDemo />
+
 <Tabs items={["in_place（直接、既定）", "worktree（並行）"]}>
 <Tab value="in_place（直接、既定）" id="in-place">
 
@@ -117,6 +120,8 @@ git 管理外の通常のディレクトリはこのモードしか使えませ�
 <Accordion title="成果物はあなたのリポジトリ内のブランチ" id="result-is-a-branch">
 
 ブランチは実行ごとではなくタスクごとに 1 本で、`agent/<agent>/<issue>`（チャットなら `agent/<agent>/chat-<session>`）という名前が付きます。実行の「実行詳細」パネルにブランチ名が表示され（コピーも可能）、`git branch` でも見つけられます。`git log` / `git diff` でレビューし、マージするか cherry-pick するかは自分で決めます。Multica が代わりにマージすることはありません。
+
+`<agent>` はエージェント名から作られます。小文字にしたうえで英字と数字だけを残し、それ以外の文字は `-` に置き換え、最大 30 文字です。英字も数字も含まない名前は `agent` になります。そのため「運用アシスタント」が OPS-21 を処理すると、ブランチは `agent/agent/ops-21` です。`<issue>` は小文字にしたタスク番号です。
 
 途中で失敗した実行もブランチを報告します。エージェントが作った分はすでにコミットされているからです。
 
@@ -165,7 +170,7 @@ git 管理外の通常のディレクトリはこのモードしか使えませ�
 </Accordion>
 <Accordion title="リポジトリに残るブランチと隠し ref" id="what-stays-in-your-repo">
 
-ワークツリーはランタイムのワークスペースディレクトリ内にあるため、通常のクリーンアップ周期で回収されます。あなたのリポジトリに残るのは 2 つ、ブランチと、ブランチごとの隠し ref（`refs/multica/local-state/` 配下）です。後者はそのブランチの所有者と、最後に引き継いだ時点のあなたのディレクトリの内容を記録します。
+ワークツリーはランタイムのワークスペースディレクトリ内にあるため、[通常のクリーンアップ周期](/daemon-runtimes#cleanup)で回収されます。あなたのリポジトリに残るのは 2 つ、ブランチと、ブランチごとの隠し ref（`refs/multica/local-state/` 配下）です。後者はそのブランチの所有者と、最後に引き継いだ時点のあなたのディレクトリの内容を記録します。
 
 隠し ref は `git branch` には現れず、`git for-each-ref refs/multica` で一覧できます。Multica はブランチと一緒に削除し、あなたが自分で消したブランチの ref は、そのリポジトリで次の実行が始まるときに片付けます。`git for-each-ref --format='%(refname)' refs/multica | xargs -n1 git update-ref -d` で一括削除もできます。
 

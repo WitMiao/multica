@@ -7,6 +7,7 @@ import { Callout } from "fumadocs-ui/components/callout";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { LocalDirModeDemo } from "@/components/demos/local-dir-mode-demo";
 
 Les ressources d'un [projet](/projects) indiquent aux agents quel code utilise cet ensemble de travail et où s'exécuter. Les ressources restent rattachées au projet : inutile de recoller les URL de dépôts ou les chemins locaux dans chaque tâche.
 
@@ -84,6 +85,8 @@ En mode `in_place` (par défaut), un répertoire local n'est pas un environnemen
 
 Un répertoire local dispose de deux modes d'exécution, définis par ressource avec `execution_mode`. L'application de bureau les nomme **Direct** et **Parallèle** ; l'API, le CLI et le reste de cette page utilisent les identifiants.
 
+<LocalDirModeDemo />
+
 <Tabs items={["in_place (Direct, par défaut)", "worktree (Parallèle)"]}>
 <Tab value="in_place (Direct, par défaut)" id="in-place">
 
@@ -115,6 +118,8 @@ Si cet état ne peut pas être reproduit fidèlement, y compris lorsque le conte
 <Accordion title="Le résultat est une branche de votre dépôt" id="result-is-a-branch">
 
 Une branche par tâche plutôt qu'une par exécution : `agent/<agent>/<issue>` (une discussion obtient `agent/<agent>/chat-<session>`). Le panneau **Détails de l'exécution** affiche le nom de la branche (et permet de le copier) ; vous pouvez aussi la trouver avec `git branch`. Relisez-la avec `git log` / `git diff`, puis fusionnez-la ou faites un cherry-pick vous-même : Multica ne la fusionne jamais à votre place.
+
+`<agent>` vient du nom de l'agent : mis en minuscules, tout ce qui n'est pas a–z ou 0–9 (lettres accentuées comprises) devient `-`, sur 30 caractères au plus. Un nom sans lettre latine ni chiffre devient `agent`. Ainsi, Assistant ops qui traite OPS-21 obtient `agent/assistant-ops/ops-21`, et un agent nommé 运营助手 obtient `agent/agent/ops-21`. `<issue>` est l'identifiant de la tâche en minuscules.
 
 Une exécution qui a échoué en cours de route indique tout de même sa branche, car elle y a déjà commité ce que l'agent avait produit.
 
@@ -163,7 +168,7 @@ Sa branche est supprimée plutôt que laissée comme entrée vide dans `git bran
 </Accordion>
 <Accordion title="Les branches et refs cachées qui restent dans votre dépôt" id="what-stays-in-your-repo">
 
-Le worktree se trouve dans le répertoire de travail du runtime et il est récupéré selon le calendrier de nettoyage habituel. Deux éléments persistent dans votre dépôt : la branche, et une ref cachée par branche sous `refs/multica/local-state/`, qui enregistre à qui elle appartient et l'état de votre répertoire lors de sa dernière reprise.
+Le worktree se trouve dans le répertoire de travail du runtime et il est récupéré selon [le calendrier de nettoyage habituel](/daemon-runtimes#cleanup). Deux éléments persistent dans votre dépôt : la branche, et une ref cachée par branche sous `refs/multica/local-state/`, qui enregistre à qui elle appartient et l'état de votre répertoire lors de sa dernière reprise.
 
 Les refs cachées n'apparaissent jamais dans `git branch` ; listez-les avec `git for-each-ref refs/multica`. Multica supprime chacune d'elles avec sa branche, et élimine celles dont vous avez vous-même supprimé la branche la prochaine fois qu'une exécution démarre sur ce dépôt. Vous pouvez aussi toutes les supprimer d'un coup avec `git for-each-ref --format='%(refname)' refs/multica | xargs -n1 git update-ref -d`.
 
