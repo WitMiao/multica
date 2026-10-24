@@ -105,3 +105,13 @@ export const homeCopy = {
     byline: ["Premiers pas", "Mis à jour en juillet 2026", "2 min de lecture"],
   },
 } as const satisfies Record<Lang, unknown>;
+
+// Chrome around the interactive demos embedded in docs pages. Each demo keeps
+// its own scenario copy next to its component.
+export const demoChromeCopy = {
+  en: { label: "Try it", replay: "Replay", click: "Click" },
+  zh: { label: "动手试试", replay: "重新演示", click: "点击" },
+  ko: { label: "직접 해보기", replay: "다시 보기", click: "클릭" },
+  ja: { label: "試してみる", replay: "もう一度", click: "クリック" },
+  fr: { label: "Essayez", replay: "Rejouer", click: "Cliquez" },
+} as const satisfies Record<Lang, unknown>;
