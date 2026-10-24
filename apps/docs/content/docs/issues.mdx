@@ -4,8 +4,10 @@ description: An issue holds one piece of work's context, assignee, status, and e
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { IssueStatusDemo } from "@/components/demos/issue-status-demo";
 
-An issue is Multica's basic unit for organizing work: a feature, a bug, an investigation — anything a member or an agent should own and drive forward. The discussion around it, its status changes, and every run stay in one place, so there is no need to reassemble context from chat logs or terminal output.
+An issue is Multica's basic unit for organizing work: a feature, a bug, an investigation — anything a member or an agent should own and drive forward. The discussion, status changes, and every run are recorded on the issue, so nobody has to dig through chat logs or terminal output for context.
 
 ## Parts of an issue
 
@@ -40,7 +42,10 @@ Assignment does not bypass an agent's Access; when assigning to a squad, the lea
 
 ## Status
 
-Every workspace starts with seven built-in statuses, grouped into four lifecycle categories:
+Every workspace starts with seven built-in statuses, grouped into four lifecycle categories.
+
+<Tabs items={["By category", "By status"]}>
+<Tab value="By category" id="status-categories">
 
 | Category | Built-in statuses | Meaning |
 |---|---|---|
@@ -49,7 +54,10 @@ Every workspace starts with seven built-in statuses, grouped into four lifecycle
 | `done` | `done` | Successfully finished; terminal. |
 | `closed` | `cancelled` | No longer pursued; terminal, not successful completion. |
 
-Categories keep lifecycle reasoning simple. Boards, lists, filters, and sorting all work from the individual status, and the concrete statuses preserve the more specific workflow behavior agents and automations rely on.
+Categories only tell you which part of the lifecycle an issue is in. Boards, lists, filters, and sorting work from the individual status, and the special behavior agents and automations rely on is attached to individual statuses too.
+
+</Tab>
+<Tab value="By status" id="built-in-statuses">
 
 | Status | Meaning |
 |---|---|
@@ -61,9 +69,16 @@ Categories keep lifecycle reasoning simple. Boards, lists, filters, and sorting 
 | `blocked` | Cannot continue for now. |
 | `cancelled` | No longer pursued; the record stays. |
 
+</Tab>
+</Tabs>
+
+The demo below starts from an issue already assigned to an agent and parked in `backlog`:
+
+<IssueStatusDemo />
+
 Members and agents can change statuses directly. In a project with a [workflow](/workflows), choose from that workflow’s steps. Moving into a step with a handoff can also change the assignee and ask an agent to start work.
 
-Agents update the issue’s status as work progresses. By default, they mark work in progress when they begin and ready for review when they deliver. When a project has a workflow, they follow its steps and handoff instructions instead. A run ending does not complete the issue by itself; answering a question does not mean the issue’s work is finished.
+Agents update the issue’s status as work progresses: by default they set `in_progress` when they begin and `in_review` when they deliver. When a project has a workflow, they follow its steps and handoff instructions instead.
 
 <Callout type="info">
 Two changes are made by the system:
@@ -76,7 +91,7 @@ Two changes are made by the system:
 
 A workspace `owner` or `admin` can add statuses such as **Code Review**, **QA**, or **Rework**. If **Settings** includes **Workflows**, manage them in the status library below it. If not, use **Settings → Issue Statuses**.
 
-Choose whether the status represents work that has not started, is underway, is finished, or is cancelled. That category cannot be changed after creation. A custom status does not automatically gain the special behavior of a built-in status: for example, naming one “Waiting” does not pause an agent.
+When you create one, pick its category — **Unstarted**, **Started**, **Done**, or **Closed**. The category cannot be changed later. A custom status does not automatically gain the special behavior of a built-in status: for example, naming one “Waiting” does not pause an agent.
 
 - Built-in statuses cannot be renamed, recolored, or archived.
 - Custom status names appear as you entered them. Changing a name or color updates it wherever that status is used.
@@ -86,7 +101,7 @@ The status library holds the available statuses. A project’s workflow chooses 
 
 ## Issues and runs
 
-An issue is the persistent record of a piece of work; a [run](/tasks) is one concrete run by an agent. One issue can produce several runs over time — a first implementation, follow-up changes, another check. A completed run only means that run ended; whether the issue is finished is determined by the issue's status.
+An issue is the persistent record of a piece of work; a [run](/tasks) is one concrete run by an agent. One issue can produce several runs over time — a first implementation, follow-up changes, another check. A completed run only means that run ended, and an agent answering a question does not mean the issue's work has been delivered; whether the issue is finished is determined by the issue's status.
 
 ## Projects and sub-issues
 

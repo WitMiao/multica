@@ -4,8 +4,10 @@ description: Une tâche regroupe le contexte, l'assigné, le statut et l'histori
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { IssueStatusDemo } from "@/components/demos/issue-status-demo";
 
-Une tâche est l'unité de base de Multica pour organiser le travail : une fonctionnalité, un bug, une investigation — tout ce qu'un membre ou un agent doit prendre en charge et faire avancer. La discussion qui l'entoure, ses changements de statut et chacune de ses exécutions restent au même endroit : inutile de reconstituer le contexte à partir d'historiques de discussion ou de sorties de terminal.
+Une tâche est l'unité de base de Multica pour organiser le travail : une fonctionnalité, un bug, une investigation — tout ce qu'un membre ou un agent doit prendre en charge et faire avancer. La discussion qui l'entoure, ses changements de statut et chacune de ses exécutions sont consignés dans la tâche : plus besoin de fouiller l'historique des discussions ou les sorties de terminal.
 
 ## Composantes d'une tâche
 
@@ -40,7 +42,10 @@ L'assignation ne contourne pas l'**Accès** d'un agent ; lors d'une assignation 
 
 ## Statut
 
-Chaque espace de travail démarre avec sept statuts intégrés, regroupés en quatre catégories de cycle de vie :
+Chaque espace de travail démarre avec sept statuts intégrés, regroupés en quatre catégories de cycle de vie.
+
+<Tabs items={["Par catégorie", "Par statut"]}>
+<Tab value="Par catégorie" id="status-categories">
 
 | Catégorie | Statuts intégrés | Signification |
 |---|---|---|
@@ -49,7 +54,10 @@ Chaque espace de travail démarre avec sept statuts intégrés, regroupés en qu
 | `done` (Terminé) | `done` | Terminé avec succès ; état final. |
 | `closed` (Fermée) | `cancelled` | Abandonné ; état final, sans aboutissement réussi. |
 
-Les catégories simplifient le raisonnement sur le cycle de vie. Les tableaux, les listes, les filtres et les tris s'appuient tous sur le statut individuel, et les statuts concrets préservent le comportement de workflow plus spécifique sur lequel reposent les agents et les automatisations.
+La catégorie sert seulement à situer la tâche dans son cycle de vie. Les tableaux, les listes, les filtres et les tris s'appuient sur le statut précis, et les comportements particuliers dont dépendent les agents et les automatisations sont eux aussi attachés au statut précis.
+
+</Tab>
+<Tab value="Par statut" id="built-in-statuses">
 
 | Statut | Signification |
 |---|---|
@@ -61,9 +69,16 @@ Les catégories simplifient le raisonnement sur le cycle de vie. Les tableaux, l
 | `blocked` (Bloqué) | Ne peut pas continuer pour l'instant. |
 | `cancelled` (Annulé) | Abandonnée ; l'historique est conservé. |
 
+</Tab>
+</Tabs>
+
+La démonstration ci-dessous part d'une tâche déjà assignée à un agent et laissée en `backlog` :
+
+<IssueStatusDemo />
+
 Les membres et les agents peuvent modifier directement les statuts. Dans un projet avec un [workflow](/workflows), choisissez parmi ses étapes. Entrer dans une étape avec passage de relais peut aussi changer le responsable et demander à un agent de commencer.
 
-Les agents mettent à jour le statut au fil du travail. Par défaut, ils indiquent le travail en cours au démarrage et la relecture à la livraison. Si le projet utilise un workflow, ils suivent ses étapes et ses consignes. La fin d’une exécution ne termine pas la tâche à elle seule ; répondre à une question ne signifie pas que tout le travail est livré.
+Les agents mettent à jour le statut au fil du travail : par défaut, ils passent la tâche à `in_progress` en commençant et à `in_review` à la livraison. Si le projet utilise un workflow, ils suivent ses étapes et ses consignes de relais.
 
 <Callout type="info">
 Deux changements sont effectués par le système :
@@ -76,7 +91,7 @@ Deux changements sont effectués par le système :
 
 Un `owner` ou un `admin` peut ajouter des statuts comme **Revue de code**, **QA** ou **À corriger**. Si **Paramètres** contient **Workflows**, gérez-les dans la bibliothèque de statuts en dessous. Sinon, utilisez **Paramètres → États des tâches**.
 
-À la création, choisissez si le statut correspond à un travail non commencé, en cours, terminé ou annulé. Cette catégorie ne peut plus être changée ensuite. Un statut personnalisé ne reprend pas les comportements particuliers d’un statut intégré : l’appeler « En attente » ne met pas un agent en pause.
+À la création, choisissez sa catégorie : **Non démarré**, **Démarrage**, **Terminé** ou **Fermée**. Elle ne peut plus être changée ensuite. Un statut personnalisé ne reprend pas les comportements particuliers d’un statut intégré : l’appeler « En attente » ne met pas un agent en pause.
 
 - Les statuts intégrés ne peuvent être ni renommés, ni recolorés, ni archivés.
 - Les statuts personnalisés affichent le nom saisi. Modifier leur nom ou leur couleur les met à jour partout où ils sont utilisés.
@@ -86,7 +101,7 @@ La bibliothèque contient les statuts disponibles. Le workflow d’un projet cho
 
 ## Tâches et exécutions
 
-Une tâche est l'enregistrement durable d'un travail ; une [exécution](/tasks) est une intervention concrète d'un agent. Une même tâche peut produire plusieurs exécutions au fil du temps — une première implémentation, des modifications de suivi, une nouvelle vérification. Une exécution terminée signifie seulement que cette exécution a pris fin ; c'est le statut de la tâche qui détermine si la tâche est terminée.
+Une tâche est l'enregistrement durable d'un travail ; une [exécution](/tasks) est une intervention concrète d'un agent. Une même tâche peut produire plusieurs exécutions au fil du temps — une première implémentation, des modifications de suivi, une nouvelle vérification. Une exécution terminée signifie seulement que cette exécution a pris fin, et un agent qui a répondu à une question n'a pas pour autant livré le travail de la tâche ; c'est le statut de la tâche qui détermine si elle est terminée.
 
 ## Projets et sous-tâches
 
