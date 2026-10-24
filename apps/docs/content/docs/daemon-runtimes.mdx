@@ -61,6 +61,25 @@ On startup, the daemon detects supported AI coding tools on `PATH` and registers
 
 The daemon needs at least one built-in supported AI coding tool detected before it will start. Install methods and executable names are in [Install AI coding tools](/install-agent-runtime).
 
+### Start at login [#autostart]
+
+A daemon started from the CLI does not come back on its own after a reboot. To have it start automatically, register the current profile:
+
+```bash
+multica daemon autostart enable
+multica daemon autostart status
+multica daemon autostart disable
+```
+
+The registered command is `multica daemon start --foreground` for that profile, launched by the OS at login: a Run registry value for the current user on Windows, a LaunchAgent in `~/Library/LaunchAgents` on macOS, and a systemd user unit on Linux, or an XDG autostart entry when no systemd user session is available. For a named profile, add `--profile <name>`; each profile is registered separately.
+
+- Only `enable` creates the registration. `multica daemon start` never registers on its own; it prints a one-line hint when nothing is registered, and when a Multica-created entry exists it refreshes the executable path in it, so upgrading or moving the CLI does not require another `enable`.
+- On macOS and Linux, the login session receives only the `PATH` captured from your shell at `enable` time. Other exported variables (API keys, `HTTPS_PROXY`, and so on) do not carry over. Persist daemon settings with `multica config set` and put other variables in your user environment.
+- A systemd user unit starts at login. To start at boot without logging in, run `loginctl enable-linger <username>` as the `enable` output suggests.
+- `multica daemon stop` stops the running daemon but keeps the registration.
+- If a file Multica did not create already sits at that location (your own systemd unit, for example), `enable` and `disable` refuse to modify it.
+- A daemon launched by Desktop is managed by Desktop; `daemon start` neither hints nor refreshes a registration for it.
+
 ## Dispatch and online status
 
 Once registered, a runtime keeps a persistent connection. When a new run enters the queue, the server notifies the matching daemon; the daemon also polls periodically so a dropped connection does not lose the notification. When a runtime is online with spare capacity, runs usually start immediately.
@@ -85,6 +104,71 @@ Detailed states and retry rules are in [Runs](/tasks).
 One daemon executes at most 20 runs at a time by default; each agent at most 6. Effective concurrency is the smaller of the two.
 
 Once a limit is reached, new runs keep queueing. Adjust a single agent's concurrency in the agent settings, and the machine-wide cap with `MULTICA_DAEMON_MAX_CONCURRENT_TASKS`. Parallel runs compete for machine capacity, tool account quota, and the same working directory all at once.
+
+Token usage, cost, and failures across runs are summarized per workspace on the [Analytics](/analytics) page; `multica runtime usage <runtime-id>` shows token usage for a single runtime.
+
+## Local MCP configuration [#local-mcp]
+
+When an agent has no MCP configuration saved, Multica passes no MCP settings and the tool reads its own configuration on that computer as usual.
+
+Once an agent has an MCP configuration (even an empty one), Multica generates a dedicated configuration for each run and hands it to the tool; Claude Code, for example, loads only that file in strict mode. So that servers already set up on the machine keep working, the daemon reads the tool's user-level MCP configuration on the runtime's computer and merges it with the agent's. For servers with the same name, the first source in this order wins:
+
+1. Servers managed by Multica or assigned from the workspace MCP library on the agent's **MCP** tab;
+2. The tool's user-level configuration file;
+3. Claude Code only: MCP servers bundled with enabled Claude Code plugins. Plugins come from `enabledPlugins` in `~/.claude/settings.json`; the daemon reads each plugin's `.mcp.json` and any MCP files its manifest declares.
+
+| Tool | User-level configuration read |
+|---|---|
+| Claude Code | `mcpServers` in `~/.claude.json`, plus MCP servers from enabled plugins |
+| Codex | `mcp_servers` in `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`) |
+| Cursor Agent | `mcpServers` in `~/.cursor/mcp.json` |
+| OpenCode | `mcp` in `$XDG_CONFIG_HOME/opencode/opencode.json` (default `~/.config/opencode/opencode.json`) |
+| OpenClaw | `mcp.servers` in `$CLAWDBOT_CONFIG_PATH`, or in `$OPENCLAW_STATE_DIR/openclaw.json` (default `~/.openclaw/openclaw.json`) |
+| CodeArts | `mcp` in `~/.codeartsdoer/codearts_cli.json` or `codearts_cli.jsonc` |
+
+CodeBuddy, Kimi CLI, and Pi load their user-level configuration themselves at startup and combine it with what Multica sends, so the daemon does not pre-merge for them; doing so would start the same server twice. CodeBuddy keeps the Multica entry when names collide. Other tools not in the table receive only the agent's configuration.
+
+The merge happens on the runtime's computer; the commands, URLs, headers, and environment values of local servers are never uploaded. The "Inherited from runtime" list on the agent's **MCP** tab shows only each server's name, transport, source, and whether it is enabled; one shadowed by a same-named agent server is marked "Overridden by Multica". If a local configuration file cannot be parsed, the daemon logs a warning and that run uses only the agent's configuration.
+
+## Cleanup and retention [#cleanup]
+
+The daemon runs its first cleanup about 30 seconds after starting, then every 2 hours. Directories in use by a running run are never cleaned. `multica daemon disk-usage` shows usage per workspace or per run. The durations below are defaults; the matching `MULTICA_GC_*` variables are in [Environment variables](/environment-variables#gc).
+
+### Run directories
+
+Each run gets a directory under the workspaces root (default `~/multica_workspaces`) holding the checked-out code, output, and logs; later runs on the same issue reuse it. The whole directory is removed:
+
+| Run source | When it is removed |
+|---|---|
+| Issue | Once the issue is in a status of the `done` or `closed` category and has not been updated for 24 hours |
+| Chat | 24 hours after the session is archived; on the next cleanup after the session is deleted. Kept for as long as the session is not archived |
+| Autopilot (Run Only), quick create | On the next cleanup after the run ends |
+| No owner found (missing metadata, or the server no longer has the record) | After 72 hours without changes to the directory |
+
+While the issue is still open, 12 hours after a run completes only regenerable content is removed: `node_modules`, `.next`, and `.turbo` directories, plus the cache the daemon prepares for Codex. Everything else stays. A daemon connected to Multica Cloud also removes the whole directory 14 days after the run completes, whether or not the issue is closed; self-hosted daemons do not do this by default.
+
+A run on a project's local directory works in your own directory, which the daemon never touches. The record directory Multica creates for that run (logs and so on) is kept too; only regenerable caches inside it are cleaned.
+
+### Shared repository cache
+
+The daemon keeps one bare-repository cache per workspace repository, under `.repos/<workspace-id>/` in the workspaces root. Runs of the same workspace on this computer share it: each checkout creates a git worktree from the cache and only fetches new commits instead of cloning again. Codex runs on Linux and Windows are the exception and get a standalone clone with `.git` inside the work directory, because Codex's workspace-write sandbox leaves Git metadata outside the work directory read-only.
+
+A cache is removed only when all three hold: no workspace or project references the repository any more, no worktrees remain, and no run has checked out from it for 30 days. It is cloned again when needed. After removing stale agent branches, the daemon runs `git reflog expire --expire=30.days --all` and `git gc --prune=30.days` on the cache while no runs are executing.
+
+### Sessions, memory, and temporary directories
+
+| Data | Location | Retention |
+|---|---|---|
+| Codex session records (one per agent per issue) | `multica-sessions/` in the Codex home (default `~/.codex`) | Removed after 14 days unused; later runs on that issue can no longer resume the earlier Codex session |
+| Hermes session records | `hermes-sessions/` in the Multica config directory (default `~/.multica`; `~/.multica/profiles/<name>` for a named profile) | Removed after 14 days unused |
+| Hermes memory (one per agent) | `hermes-state/` in the same directory | Removed after 90 days unused |
+| Each run's private temporary directory (`TMPDIR`) | `multica-task-*` in the system temp directory | Removed when the run ends; if the daemon was killed, a later cleanup removes it |
+
+### Codex native memory and subagents [#codex-memory]
+
+Daemon-managed Codex runs have Codex native memory turned off by default, so memories from this machine or an earlier run do not carry into another workspace. The setting is written only to that run's own `CODEX_HOME/config.toml` (`features.memories`, `memories.generate_memories`, and `memories.use_memories` all `false`); your `~/.codex/config.toml` is not changed. To keep native memory, set `MULTICA_CODEX_MEMORY=1` in the daemon's environment.
+
+Codex native subagents are off by default as well: Multica treats the run as finished when the parent thread finishes, and results from subagents still working are lost. If you accept that risk, set `MULTICA_CODEX_MULTI_AGENT=1`.
 
 ## Private and public runtimes
 
@@ -120,6 +204,7 @@ The table lists the variables that custom runtimes can use today. It is intentio
 | `MULTICA_AGENT_NAME` | Display name of the assigned agent | Informational |
 | `MULTICA_DAEMON_PORT` | Local daemon health/API port used by task-only commands such as `multica repo checkout` | Informational |
 | `MULTICA_TASK_SLOT` | Slot in the daemon-wide concurrency pool; useful for slot-indexed resources such as GPUs | Informational |
+| `MULTICA_REPO_CHECKOUT_MODE` | Set to `isolated` only in Codex runs on Linux and Windows, so `multica repo checkout` creates a standalone clone with `.git` inside the work directory; unset in other runs | Informational |
 | `TMPDIR` | Private temporary directory for the active task; also supplied as `TMP` and `TEMP` except on Windows, where tasks inherit the user's temp paths for Git Bash's shared `/tmp`; Windows Claude Code defaults `CLAUDE_CODE_TMPDIR` to the task temp directory | Informational |
 
 The server determines authorship for requests made with `MULTICA_TOKEN`; writes such as issue comments are attributed to the assigned agent and active task. For the token's complete binding, permissions, attribution, 24-hour maximum lifetime, and cleanup behavior, see [Temporary tokens for agent runs](/auth-tokens#temporary-tokens-for-agent-runs).

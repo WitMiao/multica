@@ -3,6 +3,7 @@ title: 环境变量
 description: 自托管 Multica 常用的服务端、存储、集成和运行时配置。
 ---
 
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 import { Callout } from "fumadocs-ui/components/callout";
 
 Multica 在进程启动时读取环境变量。修改后通常需要重启对应的 API、Web 或守护进程。Docker Compose 的 `docker compose restart` 不会重新读取 `.env`，要用 `up -d` 重建容器才能生效。
@@ -244,34 +245,100 @@ API key 与 base URL 都为空时，这一层关闭，不会发出任何上游�
 | `MULTICA_CODEX_SEMANTIC_INACTIVITY_TIMEOUT` | 同 `MULTICA_AGENT_IDLE_WATCHDOG` | Codex 语义静默阈值。Codex 自己的计时器看不到工具是否在执行，因此跟随 idle / tool 预算中较大的那个，而不再单独保留一个更短的上限 |
 | `MULTICA_CODEX_FIRST_TURN_TIMEOUT` | `0` | 显式覆盖 Codex 首轮无进展上限；`0` 保持默认值。实际首轮等待仍受 `MULTICA_CODEX_SEMANTIC_INACTIVITY_TIMEOUT` 和总执行超时限制——需将 `MULTICA_CODEX_SEMANTIC_INACTIVITY_TIMEOUT` 设为严格大于此值（并留出余量），否则等待会被截断至该值，且会跳过模型目录启动重试。设为相等还不够：语义计时器先启动，两者相等时仍可能丢失该重试 |
 | `MULTICA_CODEX_HANDSHAKE_TIMEOUT` | `30s`；`thread/start`、`thread/resume`：`60s` | Codex app-server 启动握手上限；显式设置后会统一覆盖两类预算 |
+| `MULTICA_CODEX_MEMORY` | 关闭 | 设为 `1`、`true`、`yes` 或 `on` 时，在守护进程管理的 Codex 运行中保留 Codex 原生记忆；默认按运行关闭，见 [Codex 原生记忆与子智能体](/daemon-runtimes#codex-memory) |
+| `MULTICA_CODEX_MULTI_AGENT` | 关闭 | 取值同上，保留 Codex 原生子智能体。父线程结束时运行即判为结束，子智能体未交回的结果会丢失 |
 | `MULTICA_CODEX_TURN_INTERRUPT_TIMEOUT` | `2s` | 任务取消后等待 Codex app-server 确认 `turn/interrupt` 并发出 `turn/completed` 的宽限期，以便在强制清理进程前保留最终 token 用量。主机异常缓慢时，可根据 daemon 日志记录的中断延迟调整 |
 | `MULTICA_DAEMON_AUTO_UPDATE` | Cloud `true`；自托管 `false` | 是否自动检查并更新 CLI |
 | `MULTICA_DAEMON_AUTO_UPDATE_INTERVAL` | `6h` | 检查更新的间隔 |
 | `MULTICA_DAEMON_AUTO_RELOAD` | `true` | 是否在 `multica` 二进制被带外替换（`brew upgrade`、重新下载、本地构建）后重启到新二进制。与 `MULTICA_DAEMON_AUTO_UPDATE` 相互独立 |
 | `MULTICA_WORKSPACES_ROOT` | `~/multica_workspaces` | 执行工作目录的根目录 |
 | `MULTICA_AGENT_TEMP_BASE` | `/tmp`（Linux/macOS） | 仅适用于 Linux/macOS。每次运行的私有临时目录的父目录；必须是现有、可写的绝对路径，无效值会使运行启动失败，不会回退到 `/tmp`。请选择较短的路径——子工具可能会在其中绑定 AF_UNIX socket；Linux 的 `sun_path` 上限为 108 字节，macOS 为 104 字节 |
-| `MULTICA_KEEP_ENV_AFTER_TASK` | `false` | 保留运行目录用于调试 |
+| `MULTICA_KEEP_ENV_AFTER_TASK` | `false` | 当前版本会读取但不生效。要让运行目录保留更久，调整下面的 `MULTICA_GC_*` |
 
-守护进程注入智能体 task 的内部上下文见 [Task 运行时环境](/daemon-runtimes#task-运行时环境)。
+守护进程注入智能体 task 的内部上下文见 [Task 运行时环境](/daemon-runtimes#task-运行时环境)。`MULTICA_REPO_CHECKOUT_MODE` 也属于这类变量：守护进程只在 Linux 和 Windows 的 Codex 运行中把它设为 `isolated`，不需要也无法手动配置。守护进程自身环境里的 `MULTICA_*` 变量不会传进运行。
 
 优先级为命令行 flag → 环境变量 → `~/.multica/config.json` → 内置默认。watchdog 的行为见[守护进程与运行时](/daemon-runtimes)。
 
+### 清理与保留 [#gc]
+
+守护进程定期清理执行工作目录、仓库缓存、会话记录和临时目录，各类数据的删除条件见[清理与保留](/daemon-runtimes#cleanup)。时长接受 Go duration，另外支持 `d` 表示天（如 `14d`、`1d12h`）。
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `MULTICA_GC_ENABLED` | `true` | 设为 `false` 或 `0` 关闭整个清理循环 |
+| `MULTICA_GC_INTERVAL` | `2h` | 两轮清理之间的间隔；守护进程启动约 30 秒后先清理一次 |
+| `MULTICA_GC_TTL` | `24h` | 任务进入 `done` 或 `closed` 分类、或聊天会话归档后，再过多久删除对应运行目录 |
+| `MULTICA_GC_COMPLETED_TASK_TTL` | Multica Cloud `14d`；自托管 `0` | 任务运行完成多久后删除整个目录，不论任务是否关闭；`0` 表示关闭。不作用于项目本地目录上的运行 |
+| `MULTICA_GC_ORPHAN_TTL` | `72h` | 找不到归属的目录多久没有改动后删除 |
+| `MULTICA_GC_ARTIFACT_TTL` | `12h` | 运行完成多久后删除可再生成的内容（下一行的目录和守护进程为 Codex 准备的缓存）；`0` 表示不删 |
+| `MULTICA_GC_ARTIFACT_PATTERNS` | `node_modules,.next,.turbo` | 按目录名匹配的可再生成内容，逗号分隔。设置后**替换**默认列表，要保留默认项就一并写上；含 `/` 或 `\` 的项会被忽略 |
+| `MULTICA_GC_REPO_TTL` | `30d` | 不再被引用、也没有 worktree 的裸仓库缓存，多久没有检出后删除；`0` 表示不删 |
+| `MULTICA_GC_REPO_MAINTENANCE_ENABLED` | `true` | 删掉过期的智能体分支后，是否对仓库缓存运行 `git reflog expire` 和 `git gc`；设为 `false` 只关掉这一步 |
+| `MULTICA_GC_CODEX_SESSION_TTL` | `14d` | Codex 会话记录多久未使用后删除；`0` 表示不删 |
+| `MULTICA_GC_HERMES_SESSION_TTL` | `14d` | Hermes 会话记录多久未使用后删除；`0` 表示不删 |
+| `MULTICA_GC_HERMES_MEMORY_TTL` | `90d` | Hermes 记忆多久未使用后删除；`0` 表示不删 |
+| `MULTICA_GC_TASK_TEMP_LEGACY_TTL` | `0` | 只针对旧版守护进程留下、没有运行锁的临时目录：多久没有改动后删除。`0` 表示不删。带运行锁的临时目录在运行结束后就会删除，不受它影响 |
+
+### 守护进程日志 [#daemon-logs]
+
+守护进程在后台运行（不连着终端）时，日志写入 `~/.multica/daemon.log`，命名 profile 为 `~/.multica/profiles/<name>/daemon.log`，并按大小轮转，轮转出的文件用 gzip 压缩。
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `MULTICA_DAEMON_LOG_MAX_SIZE_MB` | `20` | `daemon.log` 达到多少 MB 时轮转 |
+| `MULTICA_DAEMON_LOG_MAX_BACKUPS` | `5` | 最多保留几个轮转文件 |
+| `MULTICA_DAEMON_LOG_MAX_AGE_DAYS` | `30` | 轮转文件保留的天数 |
+
+三个变量都要求正整数；`0`、负数或无法解析的值按默认值处理，不会变成"不限制"。保留数量和天数哪个先到就按哪个删除。崩溃输出写在同目录的 `daemon.err.log`，启动时超过 5 MB 就改名为 `daemon.err.log.1`。
+
 ### 各 AI 编程工具的路径、模型与参数
 
-各 AI 编程工具可以使用 `MULTICA_<PROVIDER>_PATH` 覆盖命令路径；支持模型覆盖的工具还可以使用 `MULTICA_<PROVIDER>_MODEL`。QwenPaw 和 MiniMax Code 没有模型变量，因为 Multica 不会向它们传模型；MiniMax Code 的路径变量是 `MULTICA_MCODE_PATH`。详见 [AI 编程工具对比](/providers#模型来源)。
+每款内置工具都有路径变量 `MULTICA_<前缀>_PATH`。设置后，守护进程用这个路径代替在 `PATH` 中查找命令；路径不存在时这款工具不会注册，也不会退回 `PATH` 里的同名命令。多数工具还有模型变量 `MULTICA_<前缀>_MODEL`：智能体没有选择模型时，用它作为这台电脑的默认模型；两者都为空时不传模型，由工具自己决定。
 
-全机默认参数 `MULTICA_<PROVIDER>_ARGS` 目前支持 Claude Code、Codex、CodeBuddy、Qwen Code 和 QwenPaw 五款工具，对应变量是 `MULTICA_CLAUDE_ARGS`、`MULTICA_CODEX_ARGS`、`MULTICA_CODEBUDDY_ARGS`、`MULTICA_QWEN_ARGS` 和 `MULTICA_QWENPAW_ARGS`。例如：
+<Accordions>
+<Accordion title="各工具的变量前缀" id="tool-env-prefixes" value="tool-env-prefixes">
+
+| 工具 | 前缀 | 有模型变量 |
+|---|---|---|
+| Antigravity | `MULTICA_ANTIGRAVITY` | ✓（取值是 `agy models` 显示的完整名称） |
+| Claude Code | `MULTICA_CLAUDE` | ✓ |
+| CodeArts | `MULTICA_CODEARTS` | ✓ |
+| CodeBuddy | `MULTICA_CODEBUDDY` | ✓ |
+| Codex | `MULTICA_CODEX` | ✓ |
+| Cursor Agent | `MULTICA_CURSOR` | ✓ |
+| DeepSeek Harness | `MULTICA_DSH` | ✓（取值是 dsh 模型目录中的 id，例如 `deepseek-official/deepseek-chat`） |
+| DevEco Code | `MULTICA_DEVECO` | ✓ |
+| Dim | `MULTICA_DIM` | ✓（取值是 dim 模型目录中的 id） |
+| GitHub Copilot CLI | `MULTICA_COPILOT` | ✓ |
+| Grok | `MULTICA_GROK` | ✓ |
+| Hermes | `MULTICA_HERMES` | ✓ |
+| Kimi CLI | `MULTICA_KIMI` | ✓ |
+| Kiro CLI | `MULTICA_KIRO` | ✓ |
+| MiniMax Code | `MULTICA_MCODE` | — |
+| Muse Code | `MULTICA_MUSE` | ✓（取值用运行时模型列表中的 ID） |
+| Oh-My-Pi | `MULTICA_OMP` | ✓ |
+| OpenClaw | `MULTICA_OPENCLAW` | ✓ |
+| OpenCode | `MULTICA_OPENCODE` | ✓ |
+| Pi | `MULTICA_PI` | ✓ |
+| Qoder CLI | `MULTICA_QODER` | ✓ |
+| Qoder CN CLI | `MULTICA_QODERCLICN` | ✓ |
+| Qwen Code | `MULTICA_QWEN` | ✓ |
+| QwenPaw | `MULTICA_QWENPAW` | — |
+| Reasonix | `MULTICA_REASONIX` | ✓ |
+| Trae CLI | `MULTICA_TRAECLI` | ✓ |
+| ZeroClaw | `MULTICA_ZEROCLAW` | —（模型由 ZeroClaw 的智能体配置管理） |
+
+</Accordion>
+</Accordions>
+
+QwenPaw 和 MiniMax Code 没有模型变量，因为 Multica 不会向它们传模型，详见 [AI 编程工具对比](/providers#模型来源)。DeepSeek Harness 另有 `MULTICA_DSH_PROFILE_BUNDLE` 和 `MULTICA_DSH_PLUGIN_PATH`，见下一节。
+
+全机默认参数 `MULTICA_<前缀>_ARGS` 目前支持 Claude Code、Codex、CodeBuddy、Qwen Code 和 QwenPaw 五款工具，对应变量是 `MULTICA_CLAUDE_ARGS`、`MULTICA_CODEX_ARGS`、`MULTICA_CODEBUDDY_ARGS`、`MULTICA_QWEN_ARGS` 和 `MULTICA_QWENPAW_ARGS`。例如：
 
 ```dotenv
 MULTICA_CLAUDE_PATH=/opt/bin/claude
 MULTICA_CLAUDE_ARGS=--max-turns 40
 ```
-
-其他工具的特殊情况：
-
-- **DeepSeek Harness** 支持 `MULTICA_DSH_PATH` 和 `MULTICA_DSH_MODEL`（取值为 dsh 模型目录中的模型 id，例如 `deepseek-official/deepseek-chat`），另有 `MULTICA_DSH_PROFILE_BUNDLE` 和 `MULTICA_DSH_PLUGIN_PATH`，见下一节。
-- **ZeroClaw** 支持 `MULTICA_ZEROCLAW_PATH`，但没有模型变量；模型由 ZeroClaw 的智能体配置管理。
-- **Muse Code** 支持 `MULTICA_MUSE_PATH` 和 `MULTICA_MUSE_MODEL`；模型值应使用运行时模型列表中的 ID。
 
 ### DeepSeek Harness 的 profile 安装
 

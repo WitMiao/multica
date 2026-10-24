@@ -3,6 +3,7 @@ title: 環境変数
 description: セルフホスト Multica でよく使うサーバー、ストレージ、連携、ランタイムの設定。
 ---
 
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 import { Callout } from "fumadocs-ui/components/callout";
 
 Multica はプロセス起動時に環境変数を読み込みます。変更後は、該当する API・Web・デーモンのプロセスを再起動してください。Docker Compose の `docker compose restart` は `.env` を再読み込みしません。`up -d` でコンテナを再作成して初めて反映されます。
@@ -244,34 +245,100 @@ API key と base URL の両方が空の場合、このレイヤーは無効に�
 | `MULTICA_CODEX_SEMANTIC_INACTIVITY_TIMEOUT` | `MULTICA_AGENT_IDLE_WATCHDOG` と同じ | Codex のセマンティック静穏しきい値。Codex 自身のタイマーはツール実行中かどうかを判別できないため、独自の短い上限を持たず idle / tool 予算の大きい方に追従します |
 | `MULTICA_CODEX_FIRST_TURN_TIMEOUT` | `0` | Codex 初回ターンの無進捗上限を明示的に上書き；`0` はデフォルトを維持。実効の初回ターン待機は依然として `MULTICA_CODEX_SEMANTIC_INACTIVITY_TIMEOUT` と全体の実行タイムアウトに制限される——`MULTICA_CODEX_SEMANTIC_INACTIVITY_TIMEOUT` をこの値より厳密に大きく（余裕を持たせて）設定すること。さもないと待機はその値で打ち切られ、モデルカタログの起動リトライがスキップされる。同値では不十分：セマンティックタイマーが先に起動するため、同値の場合でもリトライが失われることがある |
 | `MULTICA_CODEX_HANDSHAKE_TIMEOUT` | `30s`、`thread/start`・`thread/resume`：`60s` | Codex app-server 起動ハンドシェイクの上限。明示的な値は両方の予算を一括で上書きします |
+| `MULTICA_CODEX_MEMORY` | オフ | `1`、`true`、`yes`、`on` のいずれかにすると、デーモンが管理する Codex の実行で Codex ネイティブのメモリを残します。既定では実行ごとにオフになります。[Codex のネイティブメモリとサブエージェント](/daemon-runtimes#codex-memory)を参照 |
+| `MULTICA_CODEX_MULTI_AGENT` | オフ | 値は同上。Codex ネイティブのサブエージェントを残します。親スレッドが終わった時点で実行は終了扱いになり、サブエージェントがまだ返していない結果は失われます |
 | `MULTICA_CODEX_TURN_INTERRUPT_TIMEOUT` | `2s` | キャンセル後に Codex app-server が `turn/interrupt` を確認し `turn/completed` を送信するまでの猶予時間。プロセスを強制終了する前に最終トークン使用量を保持します。特に遅いホストでは daemon ログに記録された割り込み遅延を基に調整できます |
 | `MULTICA_DAEMON_AUTO_UPDATE` | Cloud は `true`、セルフホストは `false` | CLI の更新を自動でチェックして適用するか |
 | `MULTICA_DAEMON_AUTO_UPDATE_INTERVAL` | `6h` | 更新チェックの間隔 |
 | `MULTICA_DAEMON_AUTO_RELOAD` | `true` | 帯域外で置き換えられた `multica` バイナリ（`brew upgrade`、再ダウンロード、ローカルビルド）へ再起動して追従するかどうか。`MULTICA_DAEMON_AUTO_UPDATE` とは独立 |
 | `MULTICA_WORKSPACES_ROOT` | `~/multica_workspaces` | 実行用作業ディレクトリのルート |
 | `MULTICA_AGENT_TEMP_BASE` | `/tmp`（Linux/macOS） | Linux/macOS 専用。作業ごとのプライベート一時ディレクトリの親ディレクトリ。既存かつ書き込み可能な絶対パスである必要があり、無効な値の場合は `/tmp` にフォールバックせず作業の開始に失敗します。短いパスを選んでください。子ツールがその配下に AF_UNIX ソケットを作成する場合があり、`sun_path` の上限は Linux で 108 バイト、macOS で 104 バイトです |
-| `MULTICA_KEEP_ENV_AFTER_TASK` | `false` | デバッグ用に実行ディレクトリを保持 |
+| `MULTICA_KEEP_ENV_AFTER_TASK` | `false` | 現在のバージョンでは読み込まれるだけで効果はありません。実行ディレクトリを長く残すには、下の `MULTICA_GC_*` を調整します |
 
-デーモンがエージェント作業に注入する内部コンテキストについては、[作業ランタイム環境](/daemon-runtimes#作業ランタイム環境)を参照してください。
+デーモンがエージェント作業に注入する内部コンテキストについては、[作業ランタイム環境](/daemon-runtimes#作業ランタイム環境)を参照してください。`MULTICA_REPO_CHECKOUT_MODE` もその一つです。デーモンは Linux と Windows の Codex 実行でだけ `isolated` を設定し、手動では設定できません。デーモン自身の環境にある `MULTICA_*` 変数は実行に引き継がれません。
 
 優先順位はコマンドラインフラグ → 環境変数 → `~/.multica/config.json` → 組み込みデフォルトです。watchdog の動作は[デーモンとランタイム](/daemon-runtimes)を参照してください。
 
+### クリーンアップと保持 [#gc]
+
+デーモンは実行ディレクトリ、リポジトリキャッシュ、セッション記録、一時ディレクトリを定期的に片付けます。何がいつ削除されるかは[クリーンアップと保持](/daemon-runtimes#cleanup)を参照してください。期間は Go の duration 形式に加えて、日数の `d`（`14d`、`1d12h` など）も使えます。
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `MULTICA_GC_ENABLED` | `true` | `false` または `0` でクリーンアップ全体を止める |
+| `MULTICA_GC_INTERVAL` | `2h` | クリーンアップの間隔。デーモン起動の約 30 秒後に最初の 1 回を実行 |
+| `MULTICA_GC_TTL` | `24h` | タスクが `done` または `closed` カテゴリに入ってから、またはチャットセッションがアーカイブされてから、実行ディレクトリを削除するまでの時間 |
+| `MULTICA_GC_COMPLETED_TASK_TTL` | Multica Cloud は `14d`、セルフホストは `0` | タスクの実行が完了してからディレクトリ全体を削除するまでの時間。タスクが閉じているかどうかは問わない。`0` で無効。プロジェクトのローカルディレクトリでの実行には適用されない |
+| `MULTICA_GC_ORPHAN_TTL` | `72h` | 持ち主が見つからないディレクトリを、変更がないまま何時間経ったら削除するか |
+| `MULTICA_GC_ARTIFACT_TTL` | `12h` | 実行完了後、再生成できる内容（次の行のディレクトリと、デーモンが Codex 用に用意するキャッシュ）を削除するまでの時間。`0` で削除しない |
+| `MULTICA_GC_ARTIFACT_PATTERNS` | `node_modules,.next,.turbo` | 再生成できるとみなすディレクトリ名（カンマ区切り）。設定するとデフォルトの一覧を**置き換える**ため、デフォルトも残したいなら一緒に書く。`/` や `\` を含む項目は無視される |
+| `MULTICA_GC_REPO_TTL` | `30d` | どこからも参照されず worktree も残っていないベアリポジトリキャッシュを、チェックアウトがないまま何日経ったら削除するか。`0` で削除しない |
+| `MULTICA_GC_REPO_MAINTENANCE_ENABLED` | `true` | 古いエージェントブランチを消したあと、リポジトリキャッシュに `git reflog expire` と `git gc` を実行するか。`false` でこの手順だけを止める |
+| `MULTICA_GC_CODEX_SESSION_TTL` | `14d` | 使われていない Codex セッション記録を削除するまでの時間。`0` で削除しない |
+| `MULTICA_GC_HERMES_SESSION_TTL` | `14d` | 使われていない Hermes セッション記録を削除するまでの時間。`0` で削除しない |
+| `MULTICA_GC_HERMES_MEMORY_TTL` | `90d` | 使われていない Hermes メモリを削除するまでの時間。`0` で削除しない |
+| `MULTICA_GC_TASK_TEMP_LEGACY_TTL` | `0` | 古いデーモンが残した、実行ロックのない一時ディレクトリだけが対象。変更がないまま何時間経ったら削除するか。`0` で削除しない。実行ロックのある一時ディレクトリは実行終了時に削除され、この設定の影響を受けない |
+
+### デーモンのログ [#daemon-logs]
+
+デーモンがバックグラウンドで（ターミナルにつながずに）動いているとき、ログは `~/.multica/daemon.log`（名前付きプロファイルでは `~/.multica/profiles/<name>/daemon.log`）に書かれ、サイズでローテーションされます。ローテーション後のファイルは gzip で圧縮されます。
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `MULTICA_DAEMON_LOG_MAX_SIZE_MB` | `20` | `daemon.log` をローテーションするサイズ（MB） |
+| `MULTICA_DAEMON_LOG_MAX_BACKUPS` | `5` | 残すローテーション済みファイルの最大数 |
+| `MULTICA_DAEMON_LOG_MAX_AGE_DAYS` | `30` | ローテーション済みファイルを残す日数 |
+
+3 つとも正の整数を取ります。`0`、負の数、解釈できない値はデフォルトとして扱われ、「無制限」にはなりません。ローテーション済みファイルは、個数と日数のどちらかの上限に先に達した時点で削除されます。クラッシュ時の出力は同じディレクトリの `daemon.err.log` に書かれ、起動時に 5 MB を超えていれば `daemon.err.log.1` に名前が変わります。
+
 ### ツールごとのパス、モデル、引数
 
-各 AI コーディングツールは `MULTICA_<PROVIDER>_PATH` でコマンドパスを上書きでき、モデル上書き対応ツールでは `MULTICA_<PROVIDER>_MODEL` も利用できます。QwenPaw と MiniMax Code には、Multica がモデルを渡さないためモデル変数がありません。MiniMax Code のパス変数は `MULTICA_MCODE_PATH` です。詳しくは [AI コーディングツール比較](/providers#モデルの取得元) を参照してください。
+組み込みの各ツールにはパス変数 `MULTICA_<PREFIX>_PATH` があります。設定すると、デーモンは `PATH` からコマンドを探す代わりにそのパスを使います。パスが存在しない場合、そのツールは登録されず、`PATH` 上の同名コマンドに切り替わることもありません。多くのツールにはモデル変数 `MULTICA_<PREFIX>_MODEL` もあり、エージェントでモデルが選ばれていないときにこのコンピューターの既定モデルとして使われます。どちらも空ならモデルは渡されず、ツール自身が決めます。
 
-マシン全体のデフォルト引数 `MULTICA_<PROVIDER>_ARGS` は、現在 Claude Code、Codex、CodeBuddy、Qwen Code、QwenPaw の 5 ツールに対応しています。対応する変数は `MULTICA_CLAUDE_ARGS`、`MULTICA_CODEX_ARGS`、`MULTICA_CODEBUDDY_ARGS`、`MULTICA_QWEN_ARGS`、`MULTICA_QWENPAW_ARGS` です。例:
+<Accordions>
+<Accordion title="ツールごとの変数プレフィックス" id="tool-env-prefixes" value="tool-env-prefixes">
+
+| ツール | プレフィックス | モデル変数 |
+|---|---|---|
+| Antigravity | `MULTICA_ANTIGRAVITY` | ✓（値は `agy models` が表示する名前そのもの） |
+| Claude Code | `MULTICA_CLAUDE` | ✓ |
+| CodeArts | `MULTICA_CODEARTS` | ✓ |
+| CodeBuddy | `MULTICA_CODEBUDDY` | ✓ |
+| Codex | `MULTICA_CODEX` | ✓ |
+| Cursor Agent | `MULTICA_CURSOR` | ✓ |
+| DeepSeek Harness | `MULTICA_DSH` | ✓（値は dsh のモデルカタログにある ID。例: `deepseek-official/deepseek-chat`） |
+| DevEco Code | `MULTICA_DEVECO` | ✓ |
+| Dim | `MULTICA_DIM` | ✓（値は dim のモデルカタログにある ID） |
+| GitHub Copilot CLI | `MULTICA_COPILOT` | ✓ |
+| Grok | `MULTICA_GROK` | ✓ |
+| Hermes | `MULTICA_HERMES` | ✓ |
+| Kimi CLI | `MULTICA_KIMI` | ✓ |
+| Kiro CLI | `MULTICA_KIRO` | ✓ |
+| MiniMax Code | `MULTICA_MCODE` | — |
+| Muse Code | `MULTICA_MUSE` | ✓（値はランタイムのモデル一覧にある ID） |
+| Oh-My-Pi | `MULTICA_OMP` | ✓ |
+| OpenClaw | `MULTICA_OPENCLAW` | ✓ |
+| OpenCode | `MULTICA_OPENCODE` | ✓ |
+| Pi | `MULTICA_PI` | ✓ |
+| Qoder CLI | `MULTICA_QODER` | ✓ |
+| Qoder CN CLI | `MULTICA_QODERCLICN` | ✓ |
+| Qwen Code | `MULTICA_QWEN` | ✓ |
+| QwenPaw | `MULTICA_QWENPAW` | — |
+| Reasonix | `MULTICA_REASONIX` | ✓ |
+| Trae CLI | `MULTICA_TRAECLI` | ✓ |
+| ZeroClaw | `MULTICA_ZEROCLAW` | —（モデルは ZeroClaw のエージェント設定で管理） |
+
+</Accordion>
+</Accordions>
+
+QwenPaw と MiniMax Code には、Multica がモデルを渡さないためモデル変数がありません。詳しくは [AI コーディングツール比較](/providers#モデルの取得元)を参照してください。DeepSeek Harness には `MULTICA_DSH_PROFILE_BUNDLE` と `MULTICA_DSH_PLUGIN_PATH` もあり、次のセクションで説明します。
+
+マシン全体のデフォルト引数 `MULTICA_<PREFIX>_ARGS` は、現在 Claude Code、Codex、CodeBuddy、Qwen Code、QwenPaw の 5 ツールに対応しています。対応する変数は `MULTICA_CLAUDE_ARGS`、`MULTICA_CODEX_ARGS`、`MULTICA_CODEBUDDY_ARGS`、`MULTICA_QWEN_ARGS`、`MULTICA_QWENPAW_ARGS` です。例:
 
 ```dotenv
 MULTICA_CLAUDE_PATH=/opt/bin/claude
 MULTICA_CLAUDE_ARGS=--max-turns 40
 ```
-
-ツール固有のケース:
-
-- **DeepSeek Harness** は `MULTICA_DSH_PATH` と `MULTICA_DSH_MODEL` に対応しています（値は dsh のモデルカタログにあるモデル ID、例: `deepseek-official/deepseek-chat`）。ほかに `MULTICA_DSH_PROFILE_BUNDLE` と `MULTICA_DSH_PLUGIN_PATH` があり、次のセクションで説明します。
-- **ZeroClaw** は `MULTICA_ZEROCLAW_PATH` に対応しますが、モデル変数はありません。モデルは ZeroClaw のエージェント設定で管理します。
-- **Muse Code** は `MULTICA_MUSE_PATH` と `MULTICA_MUSE_MODEL` に対応しています。モデルにはランタイムの一覧にある ID を指定してください。
 
 ### DeepSeek Harness のプロファイルのインストール
 
