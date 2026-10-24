@@ -29,6 +29,7 @@ Each of the following triggers a run:
 - Mentioning an agent in a comment.
 - Sending a message to an agent in chat.
 - An Autopilot firing on a schedule or from an external event.
+- An [issue wakeup](/issue-wakeups) firing on its event, time, or condition.
 
 The agent gets different context depending on the entry point, but execution works the same way: Multica creates a run, a runtime claims it, and the runtime invokes the AI coding tool the agent is configured with.
 
@@ -79,6 +80,8 @@ The demo below walks through a full cycle: a run queues, starts, and fails; you 
 Changing an issue's assignee or status does not stop a run that has already started; to interrupt one, stop it in the execution log. Deleting an issue cancels its active runs.
 </Callout>
 
+The execution log also totals the issue's **Spent**, **Tokens**, and **Agent time**, with one cost bar per run. Clicking the total, a bar, or **Open timeline** opens the **Runs** dialog, which charts cost per run or cumulatively, splits it by agent and by model, and counts failed and cancelled runs. Costs are estimates; see [Analytics](/analytics#issue-cost) for how they are calculated and for workspace-wide usage.
+
 ## Failures and automatic retries
 
 Transient faults — a runtime going briefly offline, a daemon restart, an execution timeout, or a network interruption in the AI coding tool — can trigger an automatic retry. A regular run executes at most twice by default; tool network interruptions get up to three attempts.
@@ -91,7 +94,7 @@ When an issue has no other active run and no new retry waiting to run, a failure
 
 ## Failure reason reference
 
-The failure reasons shown in the execution log and usage stats fall into two groups: unprefixed reason codes are recorded by the platform; `agent_error.*` codes are classified from the AI coding tool's own errors.
+The failure reasons shown in the execution log and [Analytics](/analytics#errors-tab) fall into two groups: unprefixed reason codes are recorded by the platform; `agent_error.*` codes are classified from the AI coding tool's own errors.
 
 <Tabs items={["Platform side", "Tool side (agent_error.*)"]}>
 <Tab value="Platform side" id="platform-reasons">

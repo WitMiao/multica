@@ -29,6 +29,7 @@ import { RunLifecycleDemo } from "@/components/demos/run-lifecycle-demo";
 - 在评论中提及智能体。
 - 在对话中向智能体发送消息。
 - 由自动化按计划或外部事件触发。
+- [任务唤醒](/issue-wakeups)的事件、时间或条件到了。
 
 入口不同，智能体拿到的上下文也不同，执行方式则是一样的：Multica 创建运行，运行时领取它，再调用智能体配置的 AI 编程工具。
 
@@ -79,6 +80,8 @@ import { RunLifecycleDemo } from "@/components/demos/run-lifecycle-demo";
 修改任务的负责人或状态不会停止已经开始的运行，要中断就在执行日志中停止对应的运行。删除任务时，关联的活动运行会一并取消。
 </Callout>
 
+执行日志还汇总这条任务的**已花费**、**Token** 和**智能体工作**时长，每次运行对应一根费用条。点合计、费用条或**打开时间线**，打开**运行记录**对话框：按次或累计查看费用，按智能体和模型拆分，并列出失败和取消的次数。费用是估算值，怎么算的以及整个工作区的用量见[统计](/analytics#任务的花费)。
+
 ## 失败与自动重试
 
 运行时短暂离线、守护进程重启、执行超时或 AI 编程工具网络中断等临时故障，可以触发自动重试。普通运行默认最多执行两次；工具网络中断最多执行三次。
@@ -91,7 +94,7 @@ import { RunLifecycleDemo } from "@/components/demos/run-lifecycle-demo";
 
 ## 失败原因参考
 
-执行日志和用量统计里的失败原因分两类：不带前缀的原因码由平台记录，`agent_error.*` 由 AI 编程工具的报错归类而来。
+执行日志和[统计](/analytics#错误页签)里的失败原因分两类：不带前缀的原因码由平台记录，`agent_error.*` 由 AI 编程工具的报错归类而来。
 
 <Tabs items={["平台侧", "工具侧（agent_error.*）"]}>
 <Tab value="平台侧" id="platform-reasons">

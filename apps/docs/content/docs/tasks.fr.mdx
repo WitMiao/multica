@@ -29,6 +29,7 @@ Chacun des éléments suivants déclenche une exécution :
 - Mentionner un agent dans un commentaire.
 - Envoyer un message à un agent dans une discussion.
 - Une automatisation qui se déclenche selon une planification ou à partir d'un événement externe.
+- Un [réveil de tâche](/issue-wakeups) dont l'événement, l'heure ou la condition arrive.
 
 Selon le point d'entrée, l'agent reçoit un contexte différent, mais l'exécution fonctionne de la même façon : Multica crée une exécution, un runtime la prend en charge, et le runtime invoque l'outil de codage IA configuré pour l'agent.
 
@@ -79,6 +80,8 @@ La démo ci-dessous parcourt un cycle complet : une exécution entre en file, d�
 Changer l'assigné ou le statut d'une tâche n'arrête pas une exécution déjà démarrée. Pour en interrompre une, arrêtez-la dans le journal d'exécution. Supprimer une tâche annule ses exécutions actives.
 </Callout>
 
+Le journal d'exécution totalise aussi le **Dépensé**, les **Tokens** et le **Travail d'agent** de la tâche, avec une barre de coût par exécution. Cliquer sur le total, sur une barre ou sur **Ouvrir la chronologie** ouvre la boîte de dialogue **Exécutions**, qui montre le coût par exécution ou en cumul, le répartit par agent et par modèle, et compte les exécutions en échec et annulées. Les coûts sont des estimations ; leur calcul et la consommation de tout l'espace de travail sont décrits dans [Statistiques](/analytics#coût-dune-tâche).
+
 ## Échecs et relances automatiques
 
 Les défaillances transitoires — un runtime brièvement hors ligne, un redémarrage du daemon, un délai d'exécution dépassé ou une interruption réseau dans l'outil de codage IA — peuvent déclencher une relance automatique. Par défaut, une exécution ordinaire est tentée au plus deux fois ; les interruptions réseau de l'outil ont droit à trois tentatives au maximum.
@@ -91,7 +94,7 @@ Lorsqu'une tâche n'a aucune autre exécution active et aucune nouvelle relance 
 
 ## Référence des motifs d'échec
 
-Les motifs d'échec affichés dans le journal d'exécution et dans les Statistiques se répartissent en deux groupes : les codes sans préfixe sont enregistrés par la plateforme ; les codes `agent_error.*` sont classés à partir des erreurs propres à l'outil de codage IA.
+Les motifs d'échec affichés dans le journal d'exécution et dans les [Statistiques](/analytics#onglet-erreurs) se répartissent en deux groupes : les codes sans préfixe sont enregistrés par la plateforme ; les codes `agent_error.*` sont classés à partir des erreurs propres à l'outil de codage IA.
 
 <Tabs items={["Côté plateforme", "Côté outil (agent_error.*)"]}>
 <Tab value="Côté plateforme" id="platform-reasons">
