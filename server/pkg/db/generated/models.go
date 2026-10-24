@@ -98,6 +98,7 @@ type AgentRuntime struct {
 	Visibility     string             `json:"visibility"`
 	ProfileID      pgtype.UUID        `json:"profile_id"`
 	CustomName     pgtype.Text        `json:"custom_name"`
+	SharedWith     []pgtype.UUID      `json:"shared_with"`
 }
 
 type AgentSkill struct {
@@ -1216,6 +1217,11 @@ type Member struct {
 	UserID      pgtype.UUID        `json:"user_id"`
 	Role        string             `json:"role"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type MemberDelegationDay struct {
+	UserID       pgtype.UUID `json:"user_id"`
+	ActivityDate pgtype.Date `json:"activity_date"`
 }
 
 type NotificationPreference struct {

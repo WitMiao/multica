@@ -952,13 +952,15 @@ function ReplyToQuote({ entry, onJump }: { entry: TimelineEntry; onJump?: (comme
 }
 
 /** A run without a persisted reply still belongs to the agent, never its trigger author. */
-export function AgentRunComment({ run, standalone = false, commentProps, entering = false, replyTo }: {
+export function AgentRunComment({ run, standalone = false, commentProps, entering = false, replyTo, highlightedId }: {
   run: CommentRun;
   standalone?: boolean;
   entering?: boolean;
   commentProps?: CommentCardProps;
   /** The input this run answers, shown when the thread no longer places the two together. */
   replyTo?: ReactNode;
+  /** The flashed jump target: the slot's comment id, or the run's task id until it has one. */
+  highlightedId?: string | null;
 }) {
   const viewState = useInlineCommentRunState();
   const replyEntry = commentProps?.entry;
@@ -977,11 +979,13 @@ export function AgentRunComment({ run, standalone = false, commentProps, enterin
   // The notice keeps its deep-link target and highlight in the run's slot.
   const slotEntry = reply ?? notice;
   const motionRef = useRunCommentMotion(entering, reply?.id, run.task.status);
+  const highlighted = (highlightedId ?? commentProps?.highlightedCommentId) === (slotEntry?.id ?? run.task.id);
   return (
     <div ref={motionRef} data-run-slot-id={run.task.id}
       data-run-comment-id={!reply ? run.task.id : undefined}
       id={!standalone && slotEntry ? `comment-${slotEntry.id}` : undefined}
-      className={cn(standalone ? !reply && "rounded-xl border bg-card" : "border-t border-border/50", !reply && "py-1.5", slotEntry && commentProps?.highlightedCommentId === slotEntry.id && highlightedCommentBackgroundClass)}>
+      className={cn("transition-colors duration-700", standalone ? !reply && "rounded-xl border" : "border-t border-border/50", !reply && "py-1.5",
+        highlighted ? highlightedCommentBackgroundClass : standalone && !reply && "bg-card")}>
       {commentProps && reply ? standalone ? (
         <CommentCard {...commentProps} runs={commentProps.runs ?? [run]} runViewState={viewState} />
       ) : (
@@ -1086,6 +1090,7 @@ function CommentCardImpl({
   // posts one.
   const renderThreadRow = (row: TimelineEntry | ThreadRunSlot) => "run" in row ? (
     <AgentRunComment key={row.run.task.id} run={row.run} entering={enteringRunIds?.has(row.run.task.id)}
+      highlightedId={highlightedCommentId}
       replyTo={row.replyTo && <ReplyToQuote entry={row.replyTo} onJump={onJumpToComment} />}
       commentProps={row.reply ? {
         issueId, entry: row.reply, replies: [], currentUserId, canModerate, onReply, onEdit, onDelete,

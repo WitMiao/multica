@@ -1676,6 +1676,28 @@ describe("IssueDetail (shared)", () => {
     expect(container.querySelectorAll(`[data-run-id="${task.id}"]`)).toHaveLength(1);
   });
 
+  it("jumps from a header chip row to the run's block in its thread", async () => {
+    const root = mockTimeline[0]!;
+    const task: AgentTask = {
+      id: "4a2e8d1c-7f9b-4e2a-9c1d-123456789abc", agent_id: "agent-1", runtime_id: "runtime-1", issue_id: "issue-1",
+      status: "running", priority: 0, created_at: "2026-01-16T00:00:00Z",
+      started_at: "2026-01-16T00:00:00Z", dispatched_at: null, completed_at: null, result: null, error: null,
+      trigger_comment_id: root.id, delivered_comment_ids: [root.id],
+    };
+    mockApiObj.listTimeline.mockResolvedValue([root]);
+    mockApiObj.listTasksByIssue.mockResolvedValue([task]);
+    const { container } = renderIssueDetail();
+    await waitFor(() => expect(container.querySelector(`[data-run-slot-id="${task.id}"]`)).not.toBeNull());
+    const block = container.querySelector(`[data-run-slot-id="${task.id}"]`)!;
+    expect(block.className).not.toContain(highlightedCommentBackgroundClass);
+
+    fireEvent.click(screen.getByRole("button", { name: "Claude Agent is working" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Go to run/ }));
+
+    expect(scrollToIndexSpy).toHaveBeenLastCalledWith({ index: expect.any(Number), align: "start", offset: -16 });
+    await waitFor(() => expect(block.className).toContain(highlightedCommentBackgroundClass));
+  });
+
   describe("a run's failure notice (MUL-7692)", () => {
     const failedRun = (overrides: Partial<AgentTask> = {}): AgentTask => ({
       id: "4a2e8d1c-7f9b-4e2a-9c1d-123456789abc", agent_id: "agent-1", runtime_id: "runtime-1", issue_id: "issue-1",

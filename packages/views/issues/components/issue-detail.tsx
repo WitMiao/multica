@@ -2013,6 +2013,81 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       replyToRoot.has(commentId) ? jumpToReply(commentId) : jumpToThread(commentId),
     [replyToRoot, jumpToReply, jumpToThread],
   );
+  // Header chip jump to a run's block. A run is either its own top-level row
+  // or a slot inside the thread it answers, so find that row, undo whatever
+  // folds the thread, scroll the row into place, then let the effect below
+  // align the block itself once it mounts.
+  const [pendingRunJump, setPendingRunJump] = useState<{ taskId: string; rootId: string; flashId: string } | null>(null);
+  const jumpToRun = useCallback(
+    (taskId: string) => {
+      let index = items.findIndex((it) => it.kind === "run" && it.run.task.id === taskId);
+      let run = index >= 0 ? (items[index] as Extract<TimelineItem, { kind: "run" }>).run : undefined;
+      if (!run) {
+        for (const [rootId, runs] of commentRuns) {
+          run = runs.find((candidate) => candidate.task.id === taskId);
+          if (run) {
+            index = items.findIndex((it) => it.id === rootId);
+            break;
+          }
+        }
+      }
+      const rootItem = items[index];
+      if (!run || !rootItem) return;
+      const root = rootItem.kind !== "activity-group" ? rootItem.entry : undefined;
+      const headsThread = run.hasReply && run.commentId === rootItem.id;
+      if (root && !headsThread) {
+        const collapse = useCommentCollapseStore.getState();
+        if (collapse.isCollapsed(id, root.id)) collapse.toggle(id, root.id);
+      }
+      if (
+        root && !expandedResolved.has(root.id) &&
+        deriveThreadResolution(root, timelineView.threadReplies.get(root.id) ?? EMPTY_REPLIES).kind !== "none"
+      ) {
+        toggleResolvedExpand(root.id, true);
+      }
+      if (!isFlatTimeline) virtuosoRef.current?.scrollToIndex({ index, align: "start", offset: -16 });
+      setPendingRunJump({ taskId, rootId: rootItem.id, flashId: run.hasReply && run.commentId ? run.commentId : taskId });
+    },
+    [id, items, commentRuns, expandedResolved, timelineView.threadReplies, toggleResolvedExpand, isFlatTimeline],
+  );
+  // Same frame-by-frame landing as a reply jump. A run that has replied may
+  // only show as a log button in its comment's header, so align that comment.
+  useEffect(() => {
+    const container = scrollContainerEl;
+    if (!pendingRunJump || !container) return;
+    const { taskId, rootId, flashId } = pendingRunJump;
+    let rafId = 0;
+    let frames = 0;
+    let last = -1;
+    const align = () => {
+      const el = container.querySelector<HTMLElement>(`[data-run-slot-id="${taskId}"]`)
+        ?? container.querySelector<HTMLElement>(`[data-run-id="${taskId}"]`)?.closest<HTMLElement>("[id^='comment-']");
+      if (!el) {
+        if (++frames < 60) rafId = requestAnimationFrame(align);
+        else setPendingRunJump(null);
+        return;
+      }
+      const stickyBar = document
+        .getElementById(`comment-${rootId}`)
+        ?.querySelector<HTMLElement>("[data-thread-sticky-bar]");
+      const c = container.getBoundingClientRect();
+      const e = el.getBoundingClientRect();
+      const target = Math.max(
+        0,
+        container.scrollTop + (e.top - c.top) - 16 - (stickyBar && !el.contains(stickyBar) ? stickyBar.offsetHeight : 0),
+      );
+      container.scrollTop = target;
+      if (Math.abs(target - last) > 1 && ++frames < 90) {
+        last = target;
+        rafId = requestAnimationFrame(align);
+        return;
+      }
+      flashJumpTarget(flashId);
+      setPendingRunJump(null);
+    };
+    rafId = requestAnimationFrame(align);
+    return () => cancelAnimationFrame(rafId);
+  }, [pendingRunJump, scrollContainerEl, flashJumpTarget]);
 
   const {
     reactions: issueReactions,
@@ -3016,6 +3091,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         {reply?.resolved_at && !expandedResolved.has(reply.id) ? <ResolvedThreadBar
           entry={reply} replies={timelineView.threadReplies.get(reply.id) ?? EMPTY_REPLIES}
           onExpand={() => toggleResolvedExpand(reply.id, true)} /> : <AgentRunComment run={item.run} entering={enteringRunIds.has(item.run.task.id)} standalone
+          highlightedId={highlightedId}
           commentProps={reply ? {
             issueId: id, entry: reply, replies: timelineView.threadReplies.get(reply.id) ?? EMPTY_REPLIES,
             currentUserId: user?.id, canModerate: canModerateComments, onReply: submitReply,
@@ -3159,7 +3235,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             {/* Live "agent is working" chip, leftmost in the right cluster so
                 it never overlaps the title (which truncates to make room).
                 It self-hides when no agent is active. */}
-            <IssueAgentHeaderChip issueId={id} />
+            <IssueAgentHeaderChip issueId={id} onJumpToRun={jumpToRun} />
             <IssueWakeupHeaderChip issueId={id} onOpen={openWakeups} />
             {onDone && !issueBehavesAsAny(issue, ["done", "closed"]) && (
               <Tooltip>
@@ -3602,7 +3678,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
                 {/* Inline batch toolbar — appears next to the rows when
                     selections exist, instead of as a far-away fixed bar. */}
-                <BatchActionToolbar issues={childIssues} placement="inline" />
+                <BatchActionToolbar
+                  issues={childIssues}
+                  placement="inline"
+                  clearSelectionOnApply
+                />
 
                 {/* List */}
                 {!subIssuesCollapsed && (() => {
