@@ -38,6 +38,7 @@
     "providers",
     "---Automatisation---",
     "autopilots",
+    "issue-wakeups",
     "---Intégrations---",
     "channels",
     "lark-bot-integration",
