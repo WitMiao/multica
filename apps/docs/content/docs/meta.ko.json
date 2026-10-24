@@ -30,6 +30,7 @@
     "mentioning-agents",
     "chat",
     "inbox",
+    "shortcuts",
     "---런타임과 실행---",
     "tasks",
     "daemon-runtimes",

@@ -6,6 +6,7 @@ description: A one-to-one conversation with an agent that only you can see. The 
 import { Callout } from "fumadocs-ui/components/callout";
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { ChatDemo } from "@/components/demos/chat-demo";
+import { ChatQueueDemo } from "@/components/demos/chat-queue-demo";
 
 Chat fits work that hasn't become a clear issue yet: sorting out ideas, checking on the workspace, discussing an approach, asking a question that doesn't belong to any issue, or having an agent finish a small task first.
 
@@ -48,6 +49,16 @@ After the agent replies, it sometimes offers **Follow-up questions** below the r
 
 <ChatDemo />
 
+## Chat from any page
+
+You don't have to leave the page you're on to chat. Workspace pages have a round chat button in the bottom-right corner (its tooltip reads "Ask Multica"), which opens a floating chat window. The window and the **Chat** page share the same conversations, so you can pick up a chat from either one.
+
+- Press `⌘J` (`Ctrl+J` on Windows and Linux) to open or close the floating window; opening it puts the cursor in the message input. The key works while you're typing in that input, too. You can rebind it under **Settings → Shortcuts**; see [Search, shortcuts, and preferences](/shortcuts).
+- Drag the window's edges to resize it, or expand or minimize it. While an agent is replying, the closed chat button pulses gently.
+- The **Chat** page itself doesn't show the button, and `⌘J` does nothing there: the page already shows the same conversation.
+
+If you don't want the floating window, turn off **Floating chat window** under **Settings → Preferences → Comments & chat**. Chat is then reachable only from the sidebar. The switch applies to the current device only.
+
 ## Chat vs. issues
 
 | Need | Better fit |
@@ -69,7 +80,28 @@ If the local session no longer exists, the context can't be continued, or the pr
 
 While the agent runs, the UI shows the current phase and tool activity. Expand **View details** to inspect the run in full.
 
-To interrupt, click the stop button next to the input. Content already returned to the conversation is kept; input not yet processed is restored to the editor when possible.
+To interrupt, click the stop button next to the input (shown while the input is empty). Content already returned to the conversation is kept.
+
+If the agent hadn't produced anything yet, the message you just sent is taken back out of the conversation and returned to the input, attachments included, so you can edit and resend it. Stopping sometimes takes a moment to finish; refreshing the page or closing the window in the meantime doesn't lose the message, and it comes back to the input the next time you open that conversation. If the input already holds another draft, the message waits until you clear it.
+
+## Send messages while a reply is in progress
+
+You can keep typing while the agent is still replying. Once the input has content, the send button becomes **Queue message**. Queued messages don't interrupt the current reply; they wait in a queue above the input and are handled in order after the reply ends.
+
+| Action | Result |
+|---|---|
+| **Steer** | Moves this message to the front and stops the current reply. What the agent already wrote stays in the conversation, and it handles this message next. |
+| Remove (trash icon) | Takes the message out of the queue; it is never sent to the agent. |
+| **⋯ → Edit queued message** | Puts the message and its attachments back in the input so you can change it and send it again. |
+| **⋯ → Clear all** | Withdraws every queued message. The current reply keeps going. |
+
+**Steer** is unavailable until the current reply has actually started (for example, while it still waits for a runtime to pick it up), and after you lose permission to run the agent.
+
+<ChatQueueDemo />
+
+<Callout>
+**Steer** here stops the current reply first. [Add to current run](/mentioning-agents#steer-a-running-agent) in issue comments works differently: it doesn't interrupt the run, and the agent reads the message after its current step and carries on with the original task.
+</Callout>
 
 ## Organize the conversation list
 
@@ -90,4 +122,5 @@ Deleting a conversation cannot be undone and stops any runs in it that haven't f
 
 - [Assign issues to agents](/assigning-issues) — turn a discussion into trackable work.
 - [Inbox and subscriptions](/inbox) — follow team activity that needs you.
+- [Search, shortcuts, and preferences](/shortcuts) — open chat, search, and move between pages from the keyboard.
 - [Providers matrix](/providers) — session and model capabilities per AI coding tool.

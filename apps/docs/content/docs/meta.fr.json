@@ -30,6 +30,7 @@
     "mentioning-agents",
     "chat",
     "inbox",
+    "shortcuts",
     "---Runtime et exécution---",
     "tasks",
     "daemon-runtimes",
