@@ -341,7 +341,7 @@ article > p.text-lg {
   margin-top: 0 !important;
 }
 
-.prose h2 {
+.prose h2:not(.not-prose) {
   font-family: var(--font-serif), ui-serif, serif;
   font-size: 1.625rem; /* 26px */
   font-weight: 400;
@@ -354,7 +354,7 @@ article > p.text-lg {
 }
 
 /* h3 = small uppercase sans label, ruled-bottom — v2 editorial signature */
-.prose h3 {
+.prose h3:not(.not-prose) {
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 0.8125rem; /* 13px */
   font-weight: 700;
@@ -367,7 +367,7 @@ article > p.text-lg {
   border-bottom: 1px solid var(--border);
 }
 
-.prose h4 {
+.prose h4:not(.not-prose) {
   font-family: var(--font-serif), ui-serif, serif;
   font-size: 1.0625rem; /* 17px */
   font-weight: 500;
@@ -806,4 +806,39 @@ article figure.shiki button {
 article figure.shiki button:hover {
   color: var(--foreground) !important;
   background: var(--muted) !important;
+}
+
+/* Accordion ids exist so links can open an entry; the "copy link" button
+ * Fumadocs adds next to each title only adds noise, so it is hidden. */
+[data-accordion-value] > button[aria-live] {
+  display: none;
+}
+
+/* A Steps item is at least as tall as its number badge plus a gap, so
+ * consecutive one-line steps never stack their badges. */
+.fd-step {
+  min-height: 2.5rem;
+}
+
+/* Fumadocs Tabs: a hairline closes the tab bar and the active underline sits
+ * on it, so the indicator never meets the panel's rounded corner. The hairline
+ * is an inset shadow because the tab bar scrolls horizontally: anything that
+ * reaches past its edge adds a scrollbar. The panel's own radius is dropped;
+ * the outer frame already clips the corners. A lone code block keeps its inset
+ * and border instead of bleeding to the edges, so every tab group reads the
+ * same. */
+[dir][data-orientation="horizontal"]:has(> [role="tablist"]) {
+  > [role="tablist"] {
+    box-shadow: inset 0 -1px 0 var(--border);
+  }
+  > [role="tablist"] > [role="tab"] {
+    border-bottom-width: 2px;
+  }
+  > [role="tabpanel"] {
+    border-radius: 0;
+  }
+  > [role="tabpanel"] > figure:only-child {
+    margin: 0;
+    border-style: solid;
+  }
 }
