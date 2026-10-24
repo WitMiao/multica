@@ -1,26 +1,37 @@
 ---
 title: Create and configure an agent
-description: Choose a starting point, then define the agent's responsibilities, capabilities, execution setup, and Access.
+description: Choose a runtime, then define the agent's responsibilities, capabilities, execution setup, and Access.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { CreateAgentDemo } from "@/components/demos/create-agent-demo";
 
 Creating an agent requires a working [runtime](/daemon-runtimes) first. The runtime decides which computer and which AI coding tool the agent uses; the agent holds the long-lived identity, instructions, and capabilities.
 
-On the workspace **Agents** page, click **New agent**.
+## Creation flow
 
-## Starting points
+On the workspace **Agents** page, click **New agent**, then go through three steps:
 
-The creation page offers two options:
+<Steps>
+<Step>
 
-| Option | When it fits |
-|---|---|
-| **Start blank** | You already know the agent's responsibilities and want to fill in every field yourself. |
-| **Build with AI** | Describe the goal first and let the Agent Builder ask the key questions and generate a draft. |
+**Choose a runtime.** The page lists the AI coding tools (harnesses) on each machine, and only online ones let you continue. Which models you can pick later, and whether skills are available, depend on this choice.
 
-Build with AI needs an online runtime for the Builder conversation. Either way, you can review and edit the final configuration before creating.
+</Step>
+<Step>
 
-![Agent creation starting points: Start blank and Build with AI](/images/docs/quickstart-new-agent.webp)
+**Configure the agent.** Fill in the name, description, instructions, skills, model, and Access. To skip writing it all yourself, click **Let AI write it**: the current draft goes to the Agent Builder, which asks for the key details in a conversation and completes the configuration. The button appears only when the selected runtime is online and isn't a cloud runtime. While you talk to the Builder, you can edit the draft beside the conversation at any time.
+
+</Step>
+<Step>
+
+**Click Create agent.** The done page shows which runtime the agent runs on and links to what comes next: assign its first task, mention it in an issue, or add it to a squad.
+
+</Step>
+</Steps>
+
+<CreateAgentDemo />
 
 ## Required fields
 
@@ -95,7 +106,7 @@ Access decides which members can run this agent (assign, @-mention, or chat):
 
 ![Access settings: Only me, Entire workspace, Specific people](/images/docs/agent-access-settings.webp)
 
-Only the agent owner can change Access — workspace admins cannot. Workspace `owner`s and `admin`s can manage the rest of the configuration, but cannot use their admin role to run agents they aren't granted.
+Only the agent owner can change Access; workspace admins cannot. Workspace `owner`s and `admin`s can manage the rest of the configuration, but cannot use their admin role to run agents they aren't granted.
 
 ## Configuration after creation
 
@@ -139,7 +150,7 @@ MCP configuration may contain tokens; its storage and display rules match enviro
 
 Duplicating carries over most working configuration except the name, including instructions, conversation starters, skills, custom arguments, avatar, concurrency limit, and Access settings. The model, thinking level, and service tier come along too; if the original runtime is unavailable and the copy is forced onto another runtime, those three are cleared and must be re-selected.
 
-Environment variable values and MCP configuration are never copied and must be set again on the new agent. Duplication keeps the original agent's runtime binding and Access settings.
+Environment variable values and MCP configuration are never copied and must be set again on the new agent.
 
 ## Creating with the CLI
 

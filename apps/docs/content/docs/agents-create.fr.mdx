@@ -1,26 +1,37 @@
 ---
 title: Créer et configurer un agent
-description: Choisissez un point de départ, puis définissez les responsabilités, les capacités, la configuration d'exécution et l'Accès de l'agent.
+description: Choisissez un runtime, puis définissez les responsabilités, les capacités, la configuration d'exécution et l'Accès de l'agent.
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Step, Steps } from "fumadocs-ui/components/steps";
+import { CreateAgentDemo } from "@/components/demos/create-agent-demo";
 
 Pour créer un agent, il faut d'abord un [runtime](/daemon-runtimes) fonctionnel. Le runtime détermine l'ordinateur et l'outil de codage IA utilisés par l'agent ; l'agent porte l'identité durable, les instructions et les capacités.
 
-Sur la page **Agents** de l'espace de travail, cliquez sur **Nouvel agent**.
+## Étapes de création
 
-## Points de départ
+Sur la page **Agents** de l'espace de travail, cliquez sur **Nouvel agent**, puis suivez trois étapes :
 
-La page de création propose deux options :
+<Steps>
+<Step>
 
-| Option | Quand l'utiliser |
-|---|---|
-| **Partir de zéro** | Vous connaissez déjà les responsabilités de l'agent et souhaitez remplir vous-même chaque champ. |
-| **Construire avec l'IA** | Décrivez d'abord l'objectif, puis laissez l'Agent Builder poser les questions clés et générer un brouillon. |
+**Choisissez le runtime.** La page liste les outils de codage IA (harness) de chaque machine ; seuls ceux en ligne permettent de continuer. Les modèles proposés ensuite, et la disponibilité des skills, dépendent de ce choix.
 
-**Construire avec l'IA** nécessite un runtime en ligne pour la conversation avec le Builder. Dans les deux cas, vous pouvez relire et modifier la configuration finale avant la création.
+</Step>
+<Step>
 
-![Points de départ de la création d'un agent : Partir de zéro et Construire avec l'IA](/images/docs/quickstart-new-agent.webp)
+**Configurez l'agent.** Renseignez le nom, la description, les instructions, les skills, le modèle et l'Accès. Pour ne pas tout rédiger vous-même, cliquez sur **Laisser l'IA rédiger** : le brouillon actuel est confié à l'Agent Builder, qui pose les questions clés dans une conversation et complète la configuration. Ce bouton n'apparaît que si le runtime choisi est en ligne et n'est pas un runtime cloud. Pendant la conversation, vous pouvez modifier à tout moment le brouillon affiché à côté.
+
+</Step>
+<Step>
+
+**Cliquez sur Créer l'agent.** La page de fin indique sur quel runtime l'agent s'exécute et propose la suite : lui confier une première tâche, le mentionner dans une tâche ou l'ajouter à un squad.
+
+</Step>
+</Steps>
+
+<CreateAgentDemo />
 
 ## Champs obligatoires
 
@@ -95,7 +106,7 @@ L'Accès détermine quels membres peuvent exécuter cet agent (l'assigner, l'@me
 
 ![Paramètres d'Accès : Moi uniquement, Tout l'espace de travail, Personnes précises](/images/docs/agent-access-settings.webp)
 
-Seul le propriétaire de l'agent peut modifier l'Accès — les administrateurs de l'espace de travail ne le peuvent pas. Les `owner` et `admin` de l'espace de travail peuvent gérer le reste de la configuration, mais ne peuvent pas se servir de leur rôle d'administrateur pour exécuter des agents auxquels ils n'ont pas accès.
+Seul le propriétaire de l'agent peut modifier l'Accès ; les administrateurs de l'espace de travail ne le peuvent pas. Les `owner` et `admin` de l'espace de travail peuvent gérer le reste de la configuration, mais ne peuvent pas se servir de leur rôle d'administrateur pour exécuter des agents auxquels ils n'ont pas accès.
 
 ## Configuration après la création
 
@@ -139,7 +150,7 @@ La configuration MCP peut contenir des jetons ; ses règles de stockage et d'aff
 
 La duplication reprend l'essentiel de la configuration de travail, sauf le nom : instructions, amorces de conversation, skills, arguments personnalisés, avatar, limite de parallélisme et paramètres d'Accès. Le modèle, le niveau de réflexion et la vitesse (niveau de service) sont également repris ; si le runtime d'origine est indisponible et que la copie doit passer sur un autre runtime, ces trois valeurs sont effacées et doivent être choisies à nouveau.
 
-Les valeurs des variables d'environnement et la configuration MCP ne sont jamais copiées et doivent être redéfinies sur le nouvel agent. La duplication conserve le rattachement au runtime et les paramètres d'Accès de l'agent d'origine.
+Les valeurs des variables d'environnement et la configuration MCP ne sont jamais copiées et doivent être redéfinies sur le nouvel agent.
 
 ## Créer avec le CLI
 
