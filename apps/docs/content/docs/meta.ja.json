@@ -36,6 +36,7 @@
     "providers",
     "---自動化---",
     "autopilots",
+    "issue-wakeups",
     "---連携---",
     "channels",
     "lark-bot-integration",

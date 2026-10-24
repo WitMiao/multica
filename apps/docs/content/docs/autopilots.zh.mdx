@@ -10,6 +10,10 @@ import { AutopilotDemo } from "@/components/demos/autopilot-demo";
 
 每条自动化保存一份 Runbook、一个执行方和一个或多个触发器。触发后，Multica 创建任务或直接运行智能体，每一次运行都留有记录。
 
+## 自动化还是任务唤醒 [#vs-wakeups]
+
+自动化按时间表或 Webhook 开始新的工作，每次可以新建一条任务。如果是想让智能体在某个时间、或者等任务上发生某件事之后，回到一条已有的任务接着做，就给那条任务加[唤醒](/issue-wakeups)。自动化页面的**任务唤醒**标签列出整个工作区的唤醒。
+
 ## 创建自动化
 
 在侧边栏打开**自动化**，选择模板或从空白开始，然后配置：
@@ -163,3 +167,4 @@ multica autopilot trigger-rotate-url <autopilot-id> <trigger-id>
 - [分配任务给智能体](/assigning-issues) — 分配与确认窗口。
 - [收件箱与订阅](/inbox) — 运行通知的接收位置。
 - [运行](/tasks) — 执行状态与失败处理。
+- [任务唤醒](/issue-wakeups) — 让智能体之后回到已有任务接着做。

@@ -10,6 +10,10 @@ A daily progress summary, a periodic dependency check, an agent kicked off by an
 
 Each autopilot stores a Runbook, an assignee, and one or more triggers. When triggered, Multica creates an issue or runs the agent directly, and every run leaves a record.
 
+## Autopilots and issue wakeups [#vs-wakeups]
+
+An autopilot starts new work from a schedule or webhook, and can create a new issue each time. To have an agent come back to one existing issue later, at a set time or once something happens on it, add a [wakeup](/issue-wakeups) to that issue instead. The **Issue wakeups** tab on the Autopilot page lists every wakeup in the workspace.
+
 ## Create an autopilot
 
 Open **Autopilot** in the sidebar, pick a template or start from scratch, then configure:
@@ -163,3 +167,4 @@ See [Using the CLI](/cli) for the full parameters.
 - [Assign issues to agents](/assigning-issues) — assignment and the confirmation window.
 - [Inbox and subscriptions](/inbox) — where run notifications arrive.
 - [Runs](/tasks) — run states and failure handling.
+- [Issue wakeups](/issue-wakeups) — bring an agent back to an existing issue later.

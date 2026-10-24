@@ -10,6 +10,10 @@ Un résumé quotidien de l'avancement, une vérification périodique des dépend
 
 Chaque automatisation enregistre une procédure, un assigné et un ou plusieurs déclencheurs. Lorsqu'elle est déclenchée, Multica crée une tâche ou exécute directement l'agent, et chaque exécution laisse une trace.
 
+## Automatisations et réveils de tâches [#vs-wakeups]
+
+Une automatisation lance du travail nouveau à partir d'un calendrier ou d'un webhook, et peut créer une tâche à chaque fois. Pour qu'un agent revienne plus tard sur une tâche existante, à une heure donnée ou après un événement sur cette tâche, ajoutez-lui plutôt un [réveil](/issue-wakeups). L'onglet **Réveils de tâches** de la page Automatisation liste tous les réveils de l'espace de travail.
+
 ## Créer une automatisation
 
 Ouvrez **Automatisation** dans la barre latérale, choisissez un modèle ou partez de zéro, puis configurez :
@@ -163,3 +167,4 @@ Consultez [Utiliser le CLI](/cli) pour la liste complète des paramètres.
 - [Assigner des tâches aux agents](/assigning-issues) — l'assignation et la fenêtre de confirmation.
 - [Boîte de réception et abonnements](/inbox) — où arrivent les notifications d'exécution.
 - [Exécutions](/tasks) — états des exécutions et gestion des échecs.
+- [Réveils de tâches](/issue-wakeups) — faire revenir un agent plus tard sur une tâche existante.
