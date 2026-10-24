@@ -238,7 +238,9 @@ export function SteerDemo() {
 
   const sent = phase === "sent" || phase === "read" || phase === "done";
   const read = phase === "read" || phase === "done";
-  const canSend = phase === "working" || phase === "ready";
+  // Only once the opening has finished: its last timer moves the phase to
+  // "ready" and would otherwise overwrite a steer sent during the opening.
+  const canSend = phase === "ready";
   const caption =
     phase === "working" && stepsShown >= 3 ? t.captions.working : t.captions[phase];
 
