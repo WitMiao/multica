@@ -7,7 +7,7 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 Multica reads environment variables at process startup. After changing one, restart the affected API, web, or daemon process. Docker Compose's `docker compose restart` does not re-read `.env`; recreate containers with `up -d` for changes to take effect.
 
-This page lists deployment-facing configuration only; test variables and internal run variables are not covered here. It is a grouped reference — for full deployment steps, see the [self-host quickstart](/self-host-quickstart).
+This page groups deployment-facing configuration; test variables and internal run variables are not covered here. For full deployment steps, see the [self-host quickstart](/self-host-quickstart).
 
 ## Minimum production configuration
 
@@ -67,7 +67,7 @@ The primary and replica connection limits are independent. Budget their sum acro
 `MULTICA_DAEMON_SERVER_URL` is returned by the unauthenticated `/api/config` endpoint and is visible to clients. Treat it as public configuration; never put credentials, tokens, or other secrets in it.
 </Callout>
 
-When the frontend and API run on different hosts and the browser talks to the API domain directly, you must set `COOKIE_DOMAIN` — otherwise the browser cannot read the CSRF cookie: every write request returns `403 CSRF validation failed` while reads work fine. Use the narrowest parent domain that covers both hosts (`.agent.example.com` over `.example.com`). It spreads the sign-in session cookie to every host under that domain, which is only acceptable when all of those hosts are operated by the same trusted party. After changing it, clear the old cookies on both hosts and sign in again. If you follow the same-origin recipe in the [self-host quickstart](/self-host-quickstart#3-choose-how-to-access) (the browser only visits the app domain), keep it empty. Do not use an IP address — browsers ignore cookies whose Domain is an IP.
+When the frontend and API run on different hosts and the browser talks to the API domain directly, you must set `COOKIE_DOMAIN` — otherwise the browser cannot read the CSRF cookie: every write request returns `403 CSRF validation failed` while reads work fine. Use the narrowest parent domain that covers both hosts (`.agent.example.com` over `.example.com`). It spreads the sign-in session cookie to every host under that domain, which is only acceptable when all of those hosts are operated by the same trusted party. After changing it, clear the old cookies on both hosts and sign in again. If you follow the same-origin recipe in the [self-host quickstart](/self-host-quickstart#remote-access) (the browser only visits the app domain), keep it empty. Do not use an IP address — browsers ignore cookies whose Domain is an IP.
 
 <Callout type="warning">
 Self-hosted deployments must set `FRONTEND_ORIGIN`. Without it, invitation links, cookie security attributes, and WebSocket origin checks can all disagree with your actual domain.
@@ -254,20 +254,41 @@ The variables below are read on the computer that runs your agents, not in the A
 
 For the internal context that the daemon injects into agent tasks, see [Task runtime environment](/daemon-runtimes#task-runtime-environment).
 
-Each AI coding tool accepts `MULTICA_<PROVIDER>_PATH` and `MULTICA_<PROVIDER>_MODEL` to override the command path and default model. QwenPaw and MiniMax Code have no model variable because Multica never sends them a model; MiniMax Code's path variable is `MULTICA_MCODE_PATH` — see [AI coding tools comparison](/providers#model-sources). DeepSeek Harness supports `MULTICA_DSH_PATH` and `MULTICA_DSH_MODEL` (a model id from the dsh catalog, e.g. `deepseek-official/deepseek-chat`). DeepSeek Harness additionally accepts `MULTICA_DSH_PROFILE_BUNDLE`: a comma-separated list of bundles to install into its `multica` profile when that profile is missing, tried in order, where each entry is an npm spec, a directory, or a packed tarball. It is unset by default, and the `--stdio` protocol Multica drives is what that profile supplies, so an unset variable leaves the DSH installation untouched and the daemon reports the missing profile instead of registering an unusable runtime. Multica's own bridge is not on a public npm registry yet, so choosing a value is covered in [Install an agent runtime](/install-agent-runtime); whatever you set is installed into every daemon host's DSH home without further confirmation, so treat it as a supply-chain decision. The install `MULTICA_DSH_PROFILE_BUNDLE` enables is bounded on purpose: it runs at most once per daemon lifetime, only when the probe reports the profile genuinely absent, and a failure is logged with the package manager's own output and retried only after a daemon restart. A probe that times out, or answers with a protocol version this daemon does not drive, is reported and never installed over — the daemon does not overwrite a profile that is deliberately there. To diagnose, search the daemon log for `DSH runtime profile`; to undo an install, delete `$DSH_HOME/profiles/multica` (default `~/.dsh/profiles/multica`). `MULTICA_DSH_PLUGIN_PATH` overrides the directory the install resolves pnpm from. DSH Desktop keeps the pnpm that `dsh plugin` forwards to inside its own runtime-commands directory on both macOS and Windows, and the daemon finds and prepends it automatically — including the versioned layout a newer Desktop uses — so this variable is only needed for an installation the daemon cannot find, or to make the install use a pnpm of your own. Setting it replaces the search entirely: if the directory does not exist, the install falls back to whatever pnpm is on the daemon's `PATH` rather than to the bundled one. Linux has no DSH Desktop, so there the install always uses `PATH`. Dim supports `MULTICA_DIM_PATH` and `MULTICA_DIM_MODEL` (a model id from the dim catalog). ZeroClaw supports `MULTICA_ZEROCLAW_PATH` but has no model variable; its agent profile owns the model selection. Machine-wide default arguments via `MULTICA_<PROVIDER>_ARGS` are currently supported for five tools: Claude Code, Codex, CodeBuddy, Qwen Code, and QwenPaw. The variables are `MULTICA_CLAUDE_ARGS`, `MULTICA_CODEX_ARGS`, `MULTICA_CODEBUDDY_ARGS`, `MULTICA_QWEN_ARGS`, and `MULTICA_QWENPAW_ARGS`. For example:
+Precedence is command-line flag → environment variable → `~/.multica/config.json` → built-in default. For watchdog behavior, see [Daemon and runtimes](/daemon-runtimes).
+
+### Per-tool paths, models, and arguments
+
+Each AI coding tool accepts `MULTICA_<PROVIDER>_PATH` to override the command path; tools that support a model override also accept `MULTICA_<PROVIDER>_MODEL`. QwenPaw and MiniMax Code have no model variable because Multica never sends them a model; MiniMax Code's path variable is `MULTICA_MCODE_PATH`. See [AI coding tools comparison](/providers#model-sources).
+
+Machine-wide default arguments via `MULTICA_<PROVIDER>_ARGS` are currently supported for five tools — Claude Code, Codex, CodeBuddy, Qwen Code, and QwenPaw — through `MULTICA_CLAUDE_ARGS`, `MULTICA_CODEX_ARGS`, `MULTICA_CODEBUDDY_ARGS`, `MULTICA_QWEN_ARGS`, and `MULTICA_QWENPAW_ARGS`. For example:
 
 ```dotenv
 MULTICA_CLAUDE_PATH=/opt/bin/claude
 MULTICA_CLAUDE_ARGS=--max-turns 40
 ```
 
-Muse Code accepts `MULTICA_MUSE_PATH` and `MULTICA_MUSE_MODEL`; use a model id from its runtime catalog.
+Tool-specific cases:
+
+- **DeepSeek Harness** supports `MULTICA_DSH_PATH` and `MULTICA_DSH_MODEL` (a model id from the dsh catalog, e.g. `deepseek-official/deepseek-chat`), plus `MULTICA_DSH_PROFILE_BUNDLE` and `MULTICA_DSH_PLUGIN_PATH`, covered in the next section.
+- **Dim** supports `MULTICA_DIM_PATH` and `MULTICA_DIM_MODEL` (a model id from the dim catalog).
+- **ZeroClaw** supports `MULTICA_ZEROCLAW_PATH` but has no model variable; its agent profile owns the model selection.
+- **Muse Code** accepts `MULTICA_MUSE_PATH` and `MULTICA_MUSE_MODEL`; use a model id from its runtime catalog.
+
+### DeepSeek Harness profile install
+
+`MULTICA_DSH_PROFILE_BUNDLE` is a comma-separated list of bundles to install into the `multica` profile when that profile is missing, tried in order, where each entry is an npm spec, a directory, or a packed tarball. It is unset by default. The `--stdio` protocol Multica drives is what that profile supplies, so an unset variable leaves the DSH installation untouched and the daemon reports the missing profile instead of registering an unusable runtime.
+
+Multica's own bridge is not on a public npm registry yet; choosing a value is covered in [Install an agent runtime](/install-agent-runtime). Whatever you set is installed into every daemon host's DSH home without further confirmation, so treat it as a supply-chain decision.
+
+The install is bounded on purpose: it runs at most once per daemon lifetime, only when the probe reports the profile genuinely absent, and a failure is logged with the package manager's own output and retried only after a daemon restart. A probe that times out, or answers with a protocol version this daemon does not drive, is reported and never installed over: the daemon does not overwrite a profile that is deliberately there. To diagnose, search the daemon log for `DSH runtime profile`; to undo an install, delete `$DSH_HOME/profiles/multica` (default `~/.dsh/profiles/multica`).
+
+`MULTICA_DSH_PLUGIN_PATH` overrides the directory the install resolves pnpm from. DSH Desktop keeps the pnpm that `dsh plugin` forwards to inside its own runtime-commands directory on both macOS and Windows, and the daemon finds and prepends it automatically, including the versioned layout a newer Desktop uses. You only need this variable for an installation the daemon cannot find, or to make the install use a pnpm of your own. Setting it replaces the search entirely: if the directory does not exist, the install falls back to whatever pnpm is on the daemon's `PATH`, not to the bundled one. Linux has no DSH Desktop, so there the install always uses `PATH`.
+
+### Cursor background process cleanup
 
 Cursor's verified background cleanup requires Linux 6.9 or newer (process-group pidfds), macOS kernel support for process identity queries and audit-token signalling, or a successfully assigned nested Job Object on Windows. On macOS, each process is signalled using a kernel-checked PID version; no same-session group join is required. These macOS APIs are private and checked at capture time. A launch that cannot be claimed returns its original tool result and uses the ordinary idle watchdog, including when the tool watchdog is `0`. Already-claimed work remains in flight if cleanup cannot be confirmed. With the tool watchdog set to `0` there is no such boundary at all: claimed background work keeps the run in flight for as long as it lives, so the run is bounded only by `MULTICA_AGENT_TIMEOUT`, which is `0` by default.
 
 Owned Cursor background processes are also stopped when the run completes normally, so a background server started by that run does not intentionally survive finalization. macOS can recognize late children through retained original-parent identities, but cannot prove a chain whose intermediate processes disappeared before observation. Such processes, work that leaves the tracked group, or persistent ownership/signalling errors can leave background work behind. Unconfirmed cleanup is logged and never grants a successful-cleanup recovery window; unknown processes are not killed based only on their numeric PID or process group.
-
-Precedence is command-line flag → environment variable → `~/.multica/config.json` → built-in default. For watchdog behavior, see [Daemon and runtimes](/daemon-runtimes).
 
 ### Persisting daemon configuration
 

@@ -4,12 +4,14 @@ description: Multica CLI를 설치하고 로그인해 터미널에서 워크스�
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
 Multica CLI는 로컬 런타임을 연결할 뿐 아니라 터미널에서 워크스페이스, 태스크, 에이전트, 자동화를 관리할 수 있습니다. 이 페이지에서는 자주 사용하는 경로를 설명합니다. 현재 버전에서 지원하는 인수는 항상 명령 자체의 `--help`를 기준으로 확인하세요.
 
 ## 설치
 
-**macOS / Linux**
+<Tabs groupId="os" persist items={["macOS / Linux", "Windows"]}>
+<Tab value="macOS / Linux">
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash
@@ -21,11 +23,17 @@ Homebrew가 설치되어 있다면 다음 명령도 사용할 수 있습니다.
 brew install multica-ai/tap/multica
 ```
 
-**Windows PowerShell**
+</Tab>
+<Tab value="Windows">
+
+PowerShell에서 실행합니다.
 
 ```powershell
 irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
 ```
+
+</Tab>
+</Tabs>
 
 설치 성공 여부를 확인합니다.
 
@@ -35,15 +43,13 @@ multica version
 
 ## 처음 연결
 
-Multica Cloud 연결:
+연결할 서비스를 선택합니다.
 
-```bash
+```bash tab="Multica Cloud"
 multica setup
 ```
 
-자체 호스팅 인스턴스 연결:
-
-```bash
+```bash tab="자체 호스팅 인스턴스"
 multica setup self-host \
   --server-url https://api.example.com \
   --app-url https://app.example.com
@@ -303,17 +309,9 @@ CLI 설정 파일에는 사용자를 대신해 Multica에 접근할 수 있는 t
 
 ## 다른 코딩 에이전트에서 Multica 조작하기
 
-작업 대부분이 Codex, Claude Code, Cursor 안에서 이루어진다면 터미널로 전환하지 않고
-그곳에서 바로 Multica를 조작할 수 있습니다.
-[Multica CLI skill](https://github.com/multica-ai/multica-cli)은 이 페이지의 명령을
-안전하게 다루는 방법을 해당 에이전트에게 가르칩니다. 토큰을 낭비하지 않고 태스크와 댓글
-스레드를 읽고, 댓글은 파일을 통해 작성하며, 멘션·상태 변경·할당이 유발하는 부수 효과를
-올바르게 처리합니다.
+작업 대부분이 Codex, Claude Code, Cursor 안에서 이루어진다면 터미널로 전환하지 않고 그곳에서 바로 Multica를 조작할 수 있습니다. [Multica CLI skill](https://github.com/multica-ai/multica-cli)은 이 페이지의 명령을 안전하게 다루는 방법을 해당 에이전트에게 가르칩니다. 토큰을 낭비하지 않고 태스크와 댓글 스레드를 읽고, 댓글은 파일을 통해 작성하며, 멘션·상태 변경·할당이 유발하는 부수 효과를 올바르게 처리합니다.
 
-인증된 CLI를 통해서만 동작하며 그 자체로는 어떤 접근 권한도 부여하지 않습니다. 권한은
-여전히 로그인, 선택한 profile, workspace에서 나옵니다. CLI v0.4.26 이상이 필요합니다.
-Claude Code 플러그인 마켓플레이스, Codex skill 설치 도구, Cursor를 비롯해 Markdown
-지침을 읽어들이는 다른 도구의 설치 방법은 저장소 README를 참고하세요.
+인증된 CLI를 통해서만 동작하며 그 자체로는 어떤 접근 권한도 부여하지 않습니다. 권한은 여전히 로그인, 선택한 profile, workspace에서 나옵니다. CLI v0.4.26 이상이 필요합니다. Claude Code 플러그인 마켓플레이스, Codex skill 설치 도구, Cursor를 비롯해 Markdown 지침을 읽어들이는 다른 도구의 설치 방법은 저장소 README를 참고하세요.
 
 ## 다음 단계
 

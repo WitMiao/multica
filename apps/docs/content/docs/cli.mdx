@@ -4,12 +4,14 @@ description: Install and log in to the Multica CLI, and manage workspaces, issue
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
 The Multica CLI both connects local runtimes and manages workspaces, issues, agents, and automations from the terminal. This page covers the common paths; the flags your installed version supports are always defined by each command's own `--help`.
 
 ## Installation
 
-**macOS / Linux**
+<Tabs groupId="os" persist items={["macOS / Linux", "Windows"]}>
+<Tab value="macOS / Linux">
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash
@@ -21,11 +23,17 @@ With Homebrew installed, you can also run:
 brew install multica-ai/tap/multica
 ```
 
-**Windows PowerShell**
+</Tab>
+<Tab value="Windows">
+
+Run in PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
 ```
+
+</Tab>
+</Tabs>
 
 Confirm the install:
 
@@ -35,15 +43,13 @@ multica version
 
 ## First connection
 
-Connect to Multica Cloud:
+Pick the service you are connecting to:
 
-```bash
+```bash tab="Multica Cloud"
 multica setup
 ```
 
-Connect to a self-hosted instance:
-
-```bash
+```bash tab="Self-hosted instance"
 multica setup self-host \
   --server-url https://api.example.com \
   --app-url https://app.example.com
@@ -326,18 +332,9 @@ The tables below cover every current top-level command, grouped the way the CLI 
 
 ## Driving Multica from another coding agent
 
-If most of your work already happens inside Codex, Claude Code, or Cursor, you can
-operate Multica from there instead of switching to a terminal. The
-[Multica CLI skill](https://github.com/multica-ai/multica-cli) teaches those agents
-to drive the commands on this page safely: reading issues and comment threads
-without burning tokens, writing comments through a file, and handling the side
-effects that mentions, status changes, and assignments carry.
+If most of your work already happens inside Codex, Claude Code, or Cursor, you can operate Multica from there instead of switching to a terminal. The [Multica CLI skill](https://github.com/multica-ai/multica-cli) teaches those agents to drive the commands on this page safely: reading issues and comment threads without burning tokens, writing comments through a file, and handling the side effects that mentions, status changes, and assignments carry.
 
-It runs entirely through your authenticated CLI and grants no access of its own —
-permissions still come from your login, selected profile, and workspace. It requires
-CLI v0.4.26 or newer. The repository README covers installation for the Claude Code
-plugin marketplace, the Codex skill installer, Cursor, and any other tool that loads
-Markdown instructions.
+It runs entirely through your authenticated CLI and grants no access of its own — permissions still come from your login, selected profile, and workspace. It requires CLI v0.4.26 or newer. The repository README covers installation for the Claude Code plugin marketplace, the Codex skill installer, Cursor, and any other tool that loads Markdown instructions.
 
 ## Next steps
 

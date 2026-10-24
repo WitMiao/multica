@@ -4,12 +4,14 @@ description: Multica CLI をインストールしてサインインし、ター�
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
 Multica CLI は、ローカルのランタイムを接続する役割と、ターミナルからワークスペース、タスク、エージェント、オートパイロットを管理する役割の両方を担います。このページではよく使う操作の流れを紹介します。現在のバージョンがサポートするフラグは、常に各コマンド自身の `--help` が正です。
 
 ## インストール
 
-**macOS / Linux**
+<Tabs groupId="os" persist items={["macOS / Linux", "Windows"]}>
+<Tab value="macOS / Linux">
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash
@@ -21,11 +23,17 @@ Homebrew がインストールされていれば、次のコマンドでもイ�
 brew install multica-ai/tap/multica
 ```
 
-**Windows PowerShell**
+</Tab>
+<Tab value="Windows">
+
+PowerShell で実行します:
 
 ```powershell
 irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
 ```
+
+</Tab>
+</Tabs>
 
 インストールを確認します:
 
@@ -35,15 +43,13 @@ multica version
 
 ## 初回接続
 
-Multica Cloud に接続する:
+接続先のサービスを選びます:
 
-```bash
+```bash tab="Multica Cloud"
 multica setup
 ```
 
-セルフホストインスタンスに接続する:
-
-```bash
+```bash tab="セルフホストインスタンス"
 multica setup self-host \
   --server-url https://api.example.com \
   --app-url https://app.example.com
@@ -303,17 +309,9 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 
 ## 別のコーディングエージェントから Multica を操作する
 
-作業の多くを Codex、Claude Code、Cursor の中で進めているなら、ターミナルに切り替えず
-そこから Multica を操作できます。[Multica CLI skill](https://github.com/multica-ai/multica-cli)
-は、このページのコマンドを安全に扱う方法をそれらのエージェントに教えます。タスクと
-コメントスレッドをトークンを浪費せずに読み、コメントはファイル経由で書き、メンション・
-ステータス変更・アサインが伴う副作用を正しく扱います。
+作業の多くを Codex、Claude Code、Cursor の中で進めているなら、ターミナルに切り替えずそこから Multica を操作できます。[Multica CLI skill](https://github.com/multica-ai/multica-cli) は、このページのコマンドを安全に扱う方法をそれらのエージェントに教えます。タスクとコメントスレッドをトークンを浪費せずに読み、コメントはファイル経由で書き、メンション・ステータス変更・アサインが伴う副作用を正しく扱います。
 
-認証済みの CLI を通してのみ動作し、それ自体は何の権限も与えません。権限は引き続き
-ログイン、選択中のプロファイル、ワークスペースに由来します。CLI は v0.4.26 以降が必要です。
-Claude Code のプラグインマーケットプレイス、Codex の skill インストーラー、Cursor、
-その他 Markdown の指示を読み込むツールへのインストール方法は、リポジトリの README を
-参照してください。
+認証済みの CLI を通してのみ動作し、それ自体は何の権限も与えません。権限は引き続きログイン、選択中のプロファイル、ワークスペースに由来します。CLI は v0.4.26 以降が必要です。Claude Code のプラグインマーケットプレイス、Codex の skill インストーラー、Cursor、その他 Markdown の指示を読み込むツールへのインストール方法は、リポジトリの README を参照してください。
 
 ## 次のステップ
 
