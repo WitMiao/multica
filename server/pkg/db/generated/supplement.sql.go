@@ -92,105 +92,6 @@ func (q *Queries) AckTaskSupplementFailed(ctx context.Context, arg AckTaskSupple
 	return i, err
 }
 
-const bindCommentTaskSupplement = `-- name: BindCommentTaskSupplement :one
-WITH locked_task AS MATERIALIZED (
-    SELECT t.id, t.issue_id, t.runtime_id
-    FROM agent_task_queue t
-    JOIN agent_runtime r ON r.id = t.runtime_id
-    JOIN task_supplement_capability cap ON cap.task_id = t.id
-    WHERE t.id = $1
-      AND t.issue_id = $2
-      AND t.agent_id = $3
-      AND r.workspace_id = $4
-      AND t.status = 'running'
-      AND cap.capability = 'task-supplement-v1'
-      AND r.provider IN ('codex', 'claude', 'grok', 'cursor', 'kiro')
-    FOR UPDATE OF t
-), inserted AS (
-    INSERT INTO task_supplement (
-        task_id, workspace_id, issue_id, comment_id, author_id,
-        client_request_id, status
-    )
-    SELECT t.id, $4, t.issue_id, $5, $6,
-           $7, 'pending'
-    FROM locked_task t
-    WHERE (
-        SELECT count(*) FROM task_supplement s
-        WHERE s.task_id = $1
-          AND s.status IN ('pending', 'delivering', 'delivered')
-    ) < $8::int
-    RETURNING task_id, workspace_id, issue_id, comment_id, author_id, client_request_id, status, failure_reason, attempt_count, created_at, updated_at, delivered_at
-)
-SELECT inserted.task_id, inserted.workspace_id, inserted.issue_id, inserted.comment_id, inserted.author_id, inserted.client_request_id, inserted.status, inserted.failure_reason, inserted.attempt_count, inserted.created_at, inserted.updated_at, inserted.delivered_at, locked_task.runtime_id
-FROM inserted
-JOIN locked_task ON locked_task.id = inserted.task_id
-`
-
-type BindCommentTaskSupplementParams struct {
-	TaskID          pgtype.UUID `json:"task_id"`
-	IssueID         pgtype.UUID `json:"issue_id"`
-	AgentID         pgtype.UUID `json:"agent_id"`
-	WorkspaceID     pgtype.UUID `json:"workspace_id"`
-	CommentID       pgtype.UUID `json:"comment_id"`
-	AuthorID        pgtype.UUID `json:"author_id"`
-	ClientRequestID pgtype.UUID `json:"client_request_id"`
-	MaxPerTurn      int32       `json:"max_per_turn"`
-}
-
-type BindCommentTaskSupplementRow struct {
-	TaskID          pgtype.UUID        `json:"task_id"`
-	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
-	IssueID         pgtype.UUID        `json:"issue_id"`
-	CommentID       pgtype.UUID        `json:"comment_id"`
-	AuthorID        pgtype.UUID        `json:"author_id"`
-	ClientRequestID pgtype.UUID        `json:"client_request_id"`
-	Status          string             `json:"status"`
-	FailureReason   pgtype.Text        `json:"failure_reason"`
-	AttemptCount    int32              `json:"attempt_count"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
-	DeliveredAt     pgtype.Timestamptz `json:"delivered_at"`
-	RuntimeID       pgtype.UUID        `json:"runtime_id"`
-}
-
-// Binds an ordinary comment, already created through the normal comment path,
-// to the exact running turn its author chose. Locking the task serializes
-// against terminal transitions: when that turn ended first nothing is bound —
-// never a later turn of the same agent — and the caller keeps the comment's
-// normal trigger instead. The bound-count gate runs under that same lock and
-// caps how much additional input one turn can absorb: a platform backstop
-// against two agents steering each other into a live ping-pong. When the cap
-// is reached nothing is bound and the caller keeps the normal trigger.
-func (q *Queries) BindCommentTaskSupplement(ctx context.Context, arg BindCommentTaskSupplementParams) (BindCommentTaskSupplementRow, error) {
-	row := q.db.QueryRow(ctx, bindCommentTaskSupplement,
-		arg.TaskID,
-		arg.IssueID,
-		arg.AgentID,
-		arg.WorkspaceID,
-		arg.CommentID,
-		arg.AuthorID,
-		arg.ClientRequestID,
-		arg.MaxPerTurn,
-	)
-	var i BindCommentTaskSupplementRow
-	err := row.Scan(
-		&i.TaskID,
-		&i.WorkspaceID,
-		&i.IssueID,
-		&i.CommentID,
-		&i.AuthorID,
-		&i.ClientRequestID,
-		&i.Status,
-		&i.FailureReason,
-		&i.AttemptCount,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeliveredAt,
-		&i.RuntimeID,
-	)
-	return i, err
-}
-
 const claimNextTaskSupplement = `-- name: ClaimNextTaskSupplement :one
 WITH next AS MATERIALIZED (
     SELECT s.comment_id, s.task_id
@@ -258,6 +159,23 @@ func (q *Queries) CommentHasTaskSupplement(ctx context.Context, arg CommentHasTa
 	var bound bool
 	err := row.Scan(&bound)
 	return bound, err
+}
+
+const countOpenTaskSupplements = `-- name: CountOpenTaskSupplements :one
+SELECT count(*) FROM task_supplement
+WHERE task_id = $1
+  AND status IN ('pending', 'delivering', 'delivered')
+`
+
+// Counts the supplements a turn has already absorbed. Must run after
+// LockSteerableTaskForBind in the SAME transaction: a statement's snapshot in
+// READ COMMITTED starts when the statement starts, so only a post-lock read
+// sees what a competing binder committed while we waited for the task lock.
+func (q *Queries) CountOpenTaskSupplements(ctx context.Context, taskID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenTaskSupplements, taskID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createTaskSupplement = `-- name: CreateTaskSupplement :one
@@ -522,6 +440,58 @@ func (q *Queries) GetTaskSupplementForRun(ctx context.Context, arg GetTaskSupple
 	return i, err
 }
 
+const insertTaskSupplementBinding = `-- name: InsertTaskSupplementBinding :one
+INSERT INTO task_supplement (
+    task_id, workspace_id, issue_id, comment_id, author_id,
+    client_request_id, status
+)
+VALUES ($1, $2, $3, $4, $5,
+        $6, 'pending')
+RETURNING task_id, workspace_id, issue_id, comment_id, author_id, client_request_id, status, failure_reason, attempt_count, created_at, updated_at, delivered_at
+`
+
+type InsertTaskSupplementBindingParams struct {
+	TaskID          pgtype.UUID `json:"task_id"`
+	WorkspaceID     pgtype.UUID `json:"workspace_id"`
+	IssueID         pgtype.UUID `json:"issue_id"`
+	CommentID       pgtype.UUID `json:"comment_id"`
+	AuthorID        pgtype.UUID `json:"author_id"`
+	ClientRequestID pgtype.UUID `json:"client_request_id"`
+}
+
+// Step three of the bind: the caller has already locked the turn and passed
+// the per-turn cap check in this transaction. The cap (see the handler's
+// maxSupplementsPerTurn) bounds how much additional input one turn can absorb
+// — a platform backstop against two agents steering each other into a live
+// ping-pong. It deliberately scopes to this comment-steering bind path only;
+// the member-facing CreateTaskSupplement endpoint keeps its existing behavior.
+func (q *Queries) InsertTaskSupplementBinding(ctx context.Context, arg InsertTaskSupplementBindingParams) (TaskSupplement, error) {
+	row := q.db.QueryRow(ctx, insertTaskSupplementBinding,
+		arg.TaskID,
+		arg.WorkspaceID,
+		arg.IssueID,
+		arg.CommentID,
+		arg.AuthorID,
+		arg.ClientRequestID,
+	)
+	var i TaskSupplement
+	err := row.Scan(
+		&i.TaskID,
+		&i.WorkspaceID,
+		&i.IssueID,
+		&i.CommentID,
+		&i.AuthorID,
+		&i.ClientRequestID,
+		&i.Status,
+		&i.FailureReason,
+		&i.AttemptCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeliveredAt,
+	)
+	return i, err
+}
+
 const listTaskSupplementMetadata = `-- name: ListTaskSupplementMetadata :many
 SELECT cap.task_id, cap.capability,
        COALESCE(array_agg(s.comment_id ORDER BY s.created_at, s.comment_id)
@@ -628,6 +598,51 @@ func (q *Queries) ListTaskSupplementsByCommentIDs(ctx context.Context, arg ListT
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockSteerableTaskForBind = `-- name: LockSteerableTaskForBind :one
+SELECT t.id, t.runtime_id
+FROM agent_task_queue t
+JOIN agent_runtime r ON r.id = t.runtime_id
+JOIN task_supplement_capability cap ON cap.task_id = t.id
+WHERE t.id = $1
+  AND t.issue_id = $2
+  AND t.agent_id = $3
+  AND r.workspace_id = $4
+  AND t.status = 'running'
+  AND cap.capability = 'task-supplement-v1'
+  AND r.provider IN ('codex', 'claude', 'grok', 'cursor', 'kiro')
+FOR UPDATE OF t
+`
+
+type LockSteerableTaskForBindParams struct {
+	TaskID      pgtype.UUID `json:"task_id"`
+	IssueID     pgtype.UUID `json:"issue_id"`
+	AgentID     pgtype.UUID `json:"agent_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+type LockSteerableTaskForBindRow struct {
+	ID        pgtype.UUID `json:"id"`
+	RuntimeID pgtype.UUID `json:"runtime_id"`
+}
+
+// Locks and validates the exact turn a comment is being steered into. This is
+// step one of the three-statement bind (lock, recount, insert) that the caller
+// runs in one transaction: the FOR UPDATE wait re-evaluates every condition
+// against the row's newest version once the lock is won, so a turn that ended
+// while we waited is never bound — the caller keeps the comment's normal
+// trigger instead.
+func (q *Queries) LockSteerableTaskForBind(ctx context.Context, arg LockSteerableTaskForBindParams) (LockSteerableTaskForBindRow, error) {
+	row := q.db.QueryRow(ctx, lockSteerableTaskForBind,
+		arg.TaskID,
+		arg.IssueID,
+		arg.AgentID,
+		arg.WorkspaceID,
+	)
+	var i LockSteerableTaskForBindRow
+	err := row.Scan(&i.ID, &i.RuntimeID)
+	return i, err
 }
 
 const lockTaskSupplementsByComment = `-- name: LockTaskSupplementsByComment :many

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/testutil"
@@ -467,15 +468,20 @@ func TestSteerCapsTheSupplementsOneTurnAbsorbs(t *testing.T) {
 			FROM generate_series(1, $4)`, f.taskID, testWorkspaceID, f.issueID, n)
 	}
 
+	// One slot left: the steer binds and the turn reaches its cap.
 	fillSupplements(maxSupplementsPerTurn - 1)
 	var bound CommentResponse
-	postSteerFlaggedComment(t, f.issueID, "", agentMention("Supplement codex", f.agentID)+" first correction",
+	postSteerFlaggedComment(t, f.issueID, "", agentMention("Supplement codex", f.agentID)+" final correction",
 		map[string]any{"steer": true}).Want(http.StatusCreated).JSON(&bound)
 	if len(bound.Supplements) != 1 || bound.Supplements[0].TaskID != f.taskID {
-		t.Fatalf("receipts = %+v, want the turn below the cap to bind", bound.Supplements)
+		t.Fatalf("receipts = %+v, want the last slot to bind", bound.Supplements)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM task_supplement WHERE task_id = $1 AND status <> 'failed'`, f.taskID); n != maxSupplementsPerTurn {
+		t.Fatalf("turn carries %d supplements, want the cap %d", n, maxSupplementsPerTurn)
 	}
 
-	fillSupplements(1)
+	// At the cap, a sequential steer keeps the normal trigger: the comment
+	// becomes the follow-up run instead of being dropped.
 	var overflow CommentResponse
 	postSteerFlaggedComment(t, f.issueID, "", agentMention("Supplement codex", f.agentID)+" one past the cap",
 		map[string]any{"steer": true}).Want(http.StatusCreated).JSON(&overflow)
@@ -491,5 +497,61 @@ func TestSteerCapsTheSupplementsOneTurnAbsorbs(t *testing.T) {
 		f.agentID, overflow.ID).Scan(&followUps)
 	if followUps != 1 {
 		t.Fatalf("the capped-out comment produced %d follow-up runs, want 1", followUps)
+	}
+}
+
+func TestSteerBindCapSerializesConcurrentBinders(t *testing.T) {
+	// The race the cap must hold against: with one slot left, binders that
+	// queue on the task lock each recounted the pre-lock snapshot and all
+	// bound. Hold the turn's row lock the way a competing binder would, let
+	// two steering comments race for it, then release.
+	f := newSupplementFixture(t, "codex", "running", true)
+	dbfx.Exec(t, `UPDATE agent_task_queue SET delivered_comment_ids = ARRAY[trigger_comment_id] WHERE id = $1`, f.taskID)
+	dbfx.Cleanup(t, `DELETE FROM agent_task_queue WHERE issue_id = $1`, f.issueID)
+	dbfx.Exec(t, `
+		INSERT INTO task_supplement (task_id, workspace_id, issue_id, comment_id, author_id, client_request_id, status)
+		SELECT $1, $2, $3, gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'delivered'
+		FROM generate_series(1, $4)`, f.taskID, testWorkspaceID, f.issueID, maxSupplementsPerTurn-1)
+
+	held, err := testPool.Begin(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Rollback(context.Background())
+	if _, err := held.Exec(context.Background(),
+		`SELECT id FROM agent_task_queue WHERE id = $1 FOR UPDATE`, f.taskID); err != nil {
+		t.Fatal(err)
+	}
+
+	race := func(content string) chan *testutil.Response {
+		done := make(chan *testutil.Response, 1)
+		go func() {
+			req := newRequest(http.MethodPost, "/api/issues/"+f.issueID+"/comments", map[string]any{
+				"content": agentMention("Supplement codex", f.agentID) + " " + content, "steer": true,
+			})
+			done <- testutil.Call(t, testHandler.CreateComment, withURLParam(req, "id", f.issueID))
+		}()
+		return done
+	}
+	first, second := race("concurrent correction A"), race("concurrent correction B")
+	// Let both racers reach the bind and queue on the lock before releasing.
+	time.Sleep(300 * time.Millisecond)
+	if err := held.Commit(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	bound := 0
+	for _, done := range []chan *testutil.Response{first, second} {
+		var created CommentResponse
+		(<-done).Want(http.StatusCreated).JSON(&created)
+		if len(created.Supplements) == 1 {
+			bound++
+		}
+	}
+	if bound != 1 {
+		t.Fatalf("%d of 2 concurrent binds succeeded, want exactly 1", bound)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM task_supplement WHERE task_id = $1 AND status <> 'failed'`, f.taskID); n != maxSupplementsPerTurn {
+		t.Fatalf("turn carries %d supplements after the race, want the cap %d", n, maxSupplementsPerTurn)
 	}
 }

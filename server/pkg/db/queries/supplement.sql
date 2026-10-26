@@ -92,46 +92,49 @@ WHERE s.task_id = @task_id
   AND s.author_id = @author_id
   AND s.client_request_id = @client_request_id;
 
--- name: BindCommentTaskSupplement :one
--- Binds an ordinary comment, already created through the normal comment path,
--- to the exact running turn its author chose. Locking the task serializes
--- against terminal transitions: when that turn ended first nothing is bound —
--- never a later turn of the same agent — and the caller keeps the comment's
--- normal trigger instead. The bound-count gate runs under that same lock and
--- caps how much additional input one turn can absorb: a platform backstop
--- against two agents steering each other into a live ping-pong. When the cap
--- is reached nothing is bound and the caller keeps the normal trigger.
-WITH locked_task AS MATERIALIZED (
-    SELECT t.id, t.issue_id, t.runtime_id
-    FROM agent_task_queue t
-    JOIN agent_runtime r ON r.id = t.runtime_id
-    JOIN task_supplement_capability cap ON cap.task_id = t.id
-    WHERE t.id = @task_id
-      AND t.issue_id = @issue_id
-      AND t.agent_id = @agent_id
-      AND r.workspace_id = @workspace_id
-      AND t.status = 'running'
-      AND cap.capability = 'task-supplement-v1'
-      AND r.provider IN ('codex', 'claude', 'grok', 'cursor', 'kiro')
-    FOR UPDATE OF t
-), inserted AS (
-    INSERT INTO task_supplement (
-        task_id, workspace_id, issue_id, comment_id, author_id,
-        client_request_id, status
-    )
-    SELECT t.id, @workspace_id, t.issue_id, @comment_id, @author_id,
-           @client_request_id, 'pending'
-    FROM locked_task t
-    WHERE (
-        SELECT count(*) FROM task_supplement s
-        WHERE s.task_id = @task_id
-          AND s.status IN ('pending', 'delivering', 'delivered')
-    ) < @max_per_turn::int
-    RETURNING *
+-- name: LockSteerableTaskForBind :one
+-- Locks and validates the exact turn a comment is being steered into. This is
+-- step one of the three-statement bind (lock, recount, insert) that the caller
+-- runs in one transaction: the FOR UPDATE wait re-evaluates every condition
+-- against the row's newest version once the lock is won, so a turn that ended
+-- while we waited is never bound — the caller keeps the comment's normal
+-- trigger instead.
+SELECT t.id, t.runtime_id
+FROM agent_task_queue t
+JOIN agent_runtime r ON r.id = t.runtime_id
+JOIN task_supplement_capability cap ON cap.task_id = t.id
+WHERE t.id = @task_id
+  AND t.issue_id = @issue_id
+  AND t.agent_id = @agent_id
+  AND r.workspace_id = @workspace_id
+  AND t.status = 'running'
+  AND cap.capability = 'task-supplement-v1'
+  AND r.provider IN ('codex', 'claude', 'grok', 'cursor', 'kiro')
+FOR UPDATE OF t;
+
+-- name: CountOpenTaskSupplements :one
+-- Counts the supplements a turn has already absorbed. Must run after
+-- LockSteerableTaskForBind in the SAME transaction: a statement's snapshot in
+-- READ COMMITTED starts when the statement starts, so only a post-lock read
+-- sees what a competing binder committed while we waited for the task lock.
+SELECT count(*) FROM task_supplement
+WHERE task_id = @task_id
+  AND status IN ('pending', 'delivering', 'delivered');
+
+-- name: InsertTaskSupplementBinding :one
+-- Step three of the bind: the caller has already locked the turn and passed
+-- the per-turn cap check in this transaction. The cap (see the handler's
+-- maxSupplementsPerTurn) bounds how much additional input one turn can absorb
+-- — a platform backstop against two agents steering each other into a live
+-- ping-pong. It deliberately scopes to this comment-steering bind path only;
+-- the member-facing CreateTaskSupplement endpoint keeps its existing behavior.
+INSERT INTO task_supplement (
+    task_id, workspace_id, issue_id, comment_id, author_id,
+    client_request_id, status
 )
-SELECT inserted.*, locked_task.runtime_id
-FROM inserted
-JOIN locked_task ON locked_task.id = inserted.task_id;
+VALUES (@task_id, @workspace_id, @issue_id, @comment_id, @author_id,
+        @client_request_id, 'pending')
+RETURNING *;
 
 -- name: GetRunningSteerableTaskForAgent :one
 -- Resolves the running turn of one agent on one issue that can still take
