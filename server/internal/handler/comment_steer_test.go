@@ -310,3 +310,186 @@ func TestUpdateCommentKeepsTheLatestEditsSuppression(t *testing.T) {
 		t.Fatalf("the latest edit starts A, but an earlier edit's choice stayed: %v", saved.SuppressedAgentIds)
 	}
 }
+
+// postSteerFlaggedComment posts content with an explicit steer opt-in and no
+// task ids, so the server must resolve the recipients' running turns itself.
+func postSteerFlaggedComment(t *testing.T, issueID, parentID, content string, body map[string]any) *testutil.Response {
+	t.Helper()
+	if body == nil {
+		body = map[string]any{}
+	}
+	body["content"] = content
+	if parentID != "" {
+		body["parent_id"] = parentID
+	}
+	return testutil.Call(t, testHandler.CreateComment, withURLParam(
+		newRequest(http.MethodPost, "/api/issues/"+issueID+"/comments", body), "id", issueID))
+}
+
+// runningAuthorTask starts a second agent's running turn on the fixture's
+// issue for use as the comment's authoring run. Its originator is the test
+// member, so its @mentions resolve A2A permission through that human.
+func runningAuthorTask(t *testing.T, f supplementFixture, name string) (authorID, authorTaskID string) {
+	t.Helper()
+	runtimeID := dbfx.Runtime(t, "author-"+name, testutil.Cols{"provider": "claude"})
+	authorID = dbfx.Agent(t, name, runtimeID)
+	authorTaskID = dbfx.Task(t, authorID, testutil.Cols{
+		"issue_id":            f.issueID,
+		"runtime_id":          runtimeID,
+		"status":              "running",
+		"started_at":          testutil.Raw("now()"),
+		"originator_user_id":  testUserID,
+		"accountable_user_id": testUserID,
+	})
+	return authorID, authorTaskID
+}
+
+// agentPostSteer posts a comment as an agent authoring from its own running
+// task — the mid-run shape of one agent mentioning another.
+func agentPostSteer(t *testing.T, authorID, authorTaskID, issueID, content string, body map[string]any) *testutil.Response {
+	t.Helper()
+	if body == nil {
+		body = map[string]any{}
+	}
+	body["content"] = content
+	return testutil.Call(t, testHandler.CreateComment, withURLParam(
+		testutil.WithHeaders(newRequest(http.MethodPost, "/api/issues/"+issueID+"/comments", body),
+			"X-Agent-ID", authorID, "X-Task-ID", authorTaskID), "id", issueID))
+}
+
+func TestAgentAuthorSteersTheRecipientRunningTurnWhenItOptsIn(t *testing.T) {
+	f := newSupplementFixture(t, "codex", "running", true)
+	dbfx.Exec(t, `UPDATE agent_task_queue SET delivered_comment_ids = ARRAY[trigger_comment_id] WHERE id = $1`, f.taskID)
+	dbfx.Cleanup(t, `DELETE FROM agent_task_queue WHERE issue_id = $1`, f.issueID)
+	authorID, authorTaskID := runningAuthorTask(t, f, "Author runner")
+
+	var created CommentResponse
+	agentPostSteer(t, authorID, authorTaskID, f.issueID,
+		agentMention("Supplement codex", f.agentID)+" change of plan: only web",
+		map[string]any{"steer": true}).Want(http.StatusCreated).JSON(&created)
+	if len(created.Supplements) != 1 || created.Supplements[0].TaskID != f.taskID {
+		t.Fatalf("receipts = %+v, want the running turn steered", created.Supplements)
+	}
+	if outcome, ok := outcomeFor(created.TriggerOutcomes, f.agentID); !ok || outcome.Status != DispatchSteered || outcome.ReasonCode != ReasonSteered {
+		t.Fatalf("outcome = %+v (%v), want steered", outcome, ok)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM agent_task_queue WHERE issue_id = $1`, f.issueID); n != 2 {
+		t.Fatalf("runs on the issue = %d, want the two running turns only", n)
+	}
+
+	completeTaskViaDaemon(t, f.taskID)
+	if n := dbfx.Count(t, `SELECT count(*) FROM agent_task_queue WHERE agent_id = $1`, f.agentID); n != 1 {
+		t.Fatalf("completion replayed the steered comment into %d runs", n)
+	}
+}
+
+func TestAgentAuthorWithoutSteerIntentKeepsTheNormalTrigger(t *testing.T) {
+	f := newSupplementFixture(t, "codex", "running", true)
+	authorID, authorTaskID := runningAuthorTask(t, f, "Queueing author")
+
+	var created CommentResponse
+	agentPostSteer(t, authorID, authorTaskID, f.issueID,
+		agentMention("Supplement codex", f.agentID)+" new task for later", nil).
+		Want(http.StatusCreated).JSON(&created)
+	if len(created.Supplements) != 0 {
+		t.Fatalf("receipts = %+v, want none without steer intent", created.Supplements)
+	}
+	if outcome, ok := outcomeFor(created.TriggerOutcomes, f.agentID); !ok || outcome.Status == DispatchSteered {
+		t.Fatalf("outcome = %+v (%v), want the normal trigger", outcome, ok)
+	}
+	completeTaskViaDaemon(t, f.taskID)
+	var followUps int
+	dbfx.QueryRow(t, `SELECT count(*) FROM agent_task_queue WHERE agent_id = $1 AND trigger_comment_id = $2`,
+		f.agentID, created.ID).Scan(&followUps)
+	if followUps != 1 {
+		t.Fatalf("the unsteered comment produced %d follow-up runs, want 1", followUps)
+	}
+}
+
+func TestSteerFlagResolvesTheRunningTurnWithoutTaskIDs(t *testing.T) {
+	f := newSupplementFixture(t, "codex", "running", true)
+	dbfx.Exec(t, `UPDATE agent_task_queue SET delivered_comment_ids = ARRAY[trigger_comment_id] WHERE id = $1`, f.taskID)
+	dbfx.Cleanup(t, `DELETE FROM agent_task_queue WHERE issue_id = $1`, f.issueID)
+
+	var created CommentResponse
+	postSteerFlaggedComment(t, f.issueID, "", agentMention("Supplement codex", f.agentID)+" only web",
+		map[string]any{"steer": true}).Want(http.StatusCreated).JSON(&created)
+	if len(created.Supplements) != 1 || created.Supplements[0].TaskID != f.taskID {
+		t.Fatalf("receipts = %+v, want the running turn resolved server-side", created.Supplements)
+	}
+	if outcome, ok := outcomeFor(created.TriggerOutcomes, f.agentID); !ok || outcome.Status != DispatchSteered {
+		t.Fatalf("outcome = %+v (%v), want steered", outcome, ok)
+	}
+}
+
+func TestSteerFlagKeepsTheNormalTriggerWhenNoTurnIsRunning(t *testing.T) {
+	f := newSupplementFixture(t, "codex", "dispatched", true)
+	dbfx.Cleanup(t, `DELETE FROM agent_task_queue WHERE issue_id = $1`, f.issueID)
+
+	var created CommentResponse
+	postSteerFlaggedComment(t, f.issueID, "", agentMention("Supplement codex", f.agentID)+" whenever you start",
+		map[string]any{"steer": true}).Want(http.StatusCreated).JSON(&created)
+	if len(created.Supplements) != 0 {
+		t.Fatalf("receipts = %+v, want none for a turn that is not running", created.Supplements)
+	}
+	if outcome, ok := outcomeFor(created.TriggerOutcomes, f.agentID); !ok || outcome.Status == DispatchSteered {
+		t.Fatalf("outcome = %+v (%v), want the normal trigger", outcome, ok)
+	}
+}
+
+func TestSteerFlagWithAttachmentsKeepsTheNormalTrigger(t *testing.T) {
+	f := newSupplementFixture(t, "codex", "running", true)
+	dbfx.Exec(t, `UPDATE agent_task_queue SET delivered_comment_ids = ARRAY[trigger_comment_id] WHERE id = $1`, f.taskID)
+	dbfx.Cleanup(t, `DELETE FROM agent_task_queue WHERE issue_id = $1`, f.issueID)
+	attachmentID := unlinkedIssueAttachment(t, f.issueID)
+
+	var created CommentResponse
+	postSteerFlaggedComment(t, f.issueID, "", agentMention("Supplement codex", f.agentID)+" see the shot",
+		map[string]any{"steer": true, "attachment_ids": []string{attachmentID}}).
+		Want(http.StatusCreated).JSON(&created)
+	if len(created.Supplements) != 0 {
+		t.Fatalf("receipts = %+v, want none for a comment carrying files", created.Supplements)
+	}
+	if outcome, ok := outcomeFor(created.TriggerOutcomes, f.agentID); !ok || outcome.Status == DispatchSteered {
+		t.Fatalf("outcome = %+v (%v), want the normal trigger", outcome, ok)
+	}
+}
+
+func TestSteerCapsTheSupplementsOneTurnAbsorbs(t *testing.T) {
+	f := newSupplementFixture(t, "codex", "running", true)
+	dbfx.Exec(t, `UPDATE agent_task_queue SET delivered_comment_ids = ARRAY[trigger_comment_id] WHERE id = $1`, f.taskID)
+	dbfx.Cleanup(t, `DELETE FROM agent_task_queue WHERE issue_id = $1`, f.issueID)
+	fillSupplements := func(n int) {
+		t.Helper()
+		dbfx.Exec(t, `
+			INSERT INTO task_supplement (task_id, workspace_id, issue_id, comment_id, author_id, client_request_id, status)
+			SELECT $1, $2, $3, gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'delivered'
+			FROM generate_series(1, $4)`, f.taskID, testWorkspaceID, f.issueID, n)
+	}
+
+	fillSupplements(maxSupplementsPerTurn - 1)
+	var bound CommentResponse
+	postSteerFlaggedComment(t, f.issueID, "", agentMention("Supplement codex", f.agentID)+" first correction",
+		map[string]any{"steer": true}).Want(http.StatusCreated).JSON(&bound)
+	if len(bound.Supplements) != 1 || bound.Supplements[0].TaskID != f.taskID {
+		t.Fatalf("receipts = %+v, want the turn below the cap to bind", bound.Supplements)
+	}
+
+	fillSupplements(1)
+	var overflow CommentResponse
+	postSteerFlaggedComment(t, f.issueID, "", agentMention("Supplement codex", f.agentID)+" one past the cap",
+		map[string]any{"steer": true}).Want(http.StatusCreated).JSON(&overflow)
+	if len(overflow.Supplements) != 0 {
+		t.Fatalf("receipts = %+v, want the capped turn to fall back to the normal trigger", overflow.Supplements)
+	}
+	if outcome, ok := outcomeFor(overflow.TriggerOutcomes, f.agentID); !ok || outcome.Status == DispatchSteered {
+		t.Fatalf("outcome = %+v (%v), want the normal trigger", outcome, ok)
+	}
+	completeTaskViaDaemon(t, f.taskID)
+	var followUps int
+	dbfx.QueryRow(t, `SELECT count(*) FROM agent_task_queue WHERE agent_id = $1 AND trigger_comment_id = $2`,
+		f.agentID, overflow.ID).Scan(&followUps)
+	if followUps != 1 {
+		t.Fatalf("the capped-out comment produced %d follow-up runs, want 1", followUps)
+	}
+}

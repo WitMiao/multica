@@ -93,11 +93,14 @@ WHERE s.task_id = @task_id
   AND s.client_request_id = @client_request_id;
 
 -- name: BindCommentTaskSupplement :one
--- Binds an ordinary member comment, already created through the normal comment
--- path, to the exact running turn its author chose. Locking the task
--- serializes against terminal transitions: when that turn ended first nothing
--- is bound — never a later turn of the same agent — and the caller keeps the
--- comment's normal trigger instead.
+-- Binds an ordinary comment, already created through the normal comment path,
+-- to the exact running turn its author chose. Locking the task serializes
+-- against terminal transitions: when that turn ended first nothing is bound —
+-- never a later turn of the same agent — and the caller keeps the comment's
+-- normal trigger instead. The bound-count gate runs under that same lock and
+-- caps how much additional input one turn can absorb: a platform backstop
+-- against two agents steering each other into a live ping-pong. When the cap
+-- is reached nothing is bound and the caller keeps the normal trigger.
 WITH locked_task AS MATERIALIZED (
     SELECT t.id, t.issue_id, t.runtime_id
     FROM agent_task_queue t
@@ -119,11 +122,30 @@ WITH locked_task AS MATERIALIZED (
     SELECT t.id, @workspace_id, t.issue_id, @comment_id, @author_id,
            @client_request_id, 'pending'
     FROM locked_task t
+    WHERE (
+        SELECT count(*) FROM task_supplement s
+        WHERE s.task_id = @task_id
+          AND s.status IN ('pending', 'delivering', 'delivered')
+    ) < @max_per_turn::int
     RETURNING *
 )
 SELECT inserted.*, locked_task.runtime_id
 FROM inserted
 JOIN locked_task ON locked_task.id = inserted.task_id;
+
+-- name: GetRunningSteerableTaskForAgent :one
+-- Resolves the running turn of one agent on one issue that can still take
+-- additional input. This lookup only picks the candidate; the bind statement
+-- re-checks every condition atomically under the task lock.
+SELECT t.id
+FROM agent_task_queue t
+JOIN task_supplement_capability cap ON cap.task_id = t.id
+WHERE t.issue_id = @issue_id
+  AND t.agent_id = @agent_id
+  AND t.status = 'running'
+  AND cap.capability = 'task-supplement-v1'
+ORDER BY t.started_at DESC NULLS LAST
+LIMIT 1;
 
 -- name: GetTaskSupplementForRun :one
 SELECT * FROM task_supplement

@@ -114,6 +114,11 @@ WITH locked_task AS MATERIALIZED (
     SELECT t.id, $4, t.issue_id, $5, $6,
            $7, 'pending'
     FROM locked_task t
+    WHERE (
+        SELECT count(*) FROM task_supplement s
+        WHERE s.task_id = $1
+          AND s.status IN ('pending', 'delivering', 'delivered')
+    ) < $8::int
     RETURNING task_id, workspace_id, issue_id, comment_id, author_id, client_request_id, status, failure_reason, attempt_count, created_at, updated_at, delivered_at
 )
 SELECT inserted.task_id, inserted.workspace_id, inserted.issue_id, inserted.comment_id, inserted.author_id, inserted.client_request_id, inserted.status, inserted.failure_reason, inserted.attempt_count, inserted.created_at, inserted.updated_at, inserted.delivered_at, locked_task.runtime_id
@@ -129,6 +134,7 @@ type BindCommentTaskSupplementParams struct {
 	CommentID       pgtype.UUID `json:"comment_id"`
 	AuthorID        pgtype.UUID `json:"author_id"`
 	ClientRequestID pgtype.UUID `json:"client_request_id"`
+	MaxPerTurn      int32       `json:"max_per_turn"`
 }
 
 type BindCommentTaskSupplementRow struct {
@@ -147,11 +153,14 @@ type BindCommentTaskSupplementRow struct {
 	RuntimeID       pgtype.UUID        `json:"runtime_id"`
 }
 
-// Binds an ordinary member comment, already created through the normal comment
-// path, to the exact running turn its author chose. Locking the task
-// serializes against terminal transitions: when that turn ended first nothing
-// is bound — never a later turn of the same agent — and the caller keeps the
-// comment's normal trigger instead.
+// Binds an ordinary comment, already created through the normal comment path,
+// to the exact running turn its author chose. Locking the task serializes
+// against terminal transitions: when that turn ended first nothing is bound —
+// never a later turn of the same agent — and the caller keeps the comment's
+// normal trigger instead. The bound-count gate runs under that same lock and
+// caps how much additional input one turn can absorb: a platform backstop
+// against two agents steering each other into a live ping-pong. When the cap
+// is reached nothing is bound and the caller keeps the normal trigger.
 func (q *Queries) BindCommentTaskSupplement(ctx context.Context, arg BindCommentTaskSupplementParams) (BindCommentTaskSupplementRow, error) {
 	row := q.db.QueryRow(ctx, bindCommentTaskSupplement,
 		arg.TaskID,
@@ -161,6 +170,7 @@ func (q *Queries) BindCommentTaskSupplement(ctx context.Context, arg BindComment
 		arg.CommentID,
 		arg.AuthorID,
 		arg.ClientRequestID,
+		arg.MaxPerTurn,
 	)
 	var i BindCommentTaskSupplementRow
 	err := row.Scan(
@@ -394,6 +404,33 @@ type DeleteTaskSupplementByCommentParams struct {
 func (q *Queries) DeleteTaskSupplementByComment(ctx context.Context, arg DeleteTaskSupplementByCommentParams) error {
 	_, err := q.db.Exec(ctx, deleteTaskSupplementByComment, arg.CommentID, arg.WorkspaceID)
 	return err
+}
+
+const getRunningSteerableTaskForAgent = `-- name: GetRunningSteerableTaskForAgent :one
+SELECT t.id
+FROM agent_task_queue t
+JOIN task_supplement_capability cap ON cap.task_id = t.id
+WHERE t.issue_id = $1
+  AND t.agent_id = $2
+  AND t.status = 'running'
+  AND cap.capability = 'task-supplement-v1'
+ORDER BY t.started_at DESC NULLS LAST
+LIMIT 1
+`
+
+type GetRunningSteerableTaskForAgentParams struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	AgentID pgtype.UUID `json:"agent_id"`
+}
+
+// Resolves the running turn of one agent on one issue that can still take
+// additional input. This lookup only picks the candidate; the bind statement
+// re-checks every condition atomically under the task lock.
+func (q *Queries) GetRunningSteerableTaskForAgent(ctx context.Context, arg GetRunningSteerableTaskForAgentParams) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getRunningSteerableTaskForAgent, arg.IssueID, arg.AgentID)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getTaskSupplementByRequest = `-- name: GetTaskSupplementByRequest :one
